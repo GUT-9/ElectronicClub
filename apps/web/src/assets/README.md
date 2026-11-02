@@ -1,7 +1,5 @@
-# 正式 Logo 资源
+# 电子俱乐部 Logo
 
-本轮云端仅可读到上一轮生成的图片，无法读取用户最初上传的原图。生成图没有作为正式标志提交。
+`electronic-club-logo.png` 为用户在当前对话中确认使用的第二张透明背景版本，对应源文件 `exec-72f5f2a0-e08c-49ef-8004-590e7ea89da2.png`。
 
-请将原始图片不经重绘地保存为 `electronic-club-logo.png`。`BrandLogo.vue` 通过 Vite glob 自动接入该原图，导航、首页和页脚共用同一资源；资源缺失时明确显示“原图待补充”。当前未生成 favicon，避免将生成图或虚构图案作为官方标志。
-
-原图可以保留黑色背景，组件通过圆形容器与 overflow 裁剪显示，内部比例使用 object-fit: contain 保持不变。收到原图后 `brand.ts` 将同一 PNG 注册为 favicon，直接复用原始像素、不重绘图案。当前原图缺失时不注册虚构 favicon；不能使用上轮生成图替代。
+资源按原文件直接复制，未进一步重绘、改色或修改比例。导航、首页和页脚通过 `BrandLogo.vue` 共用此文件；`brand.ts` 将同一 PNG 注册为 favicon。Vite 构建时输出带哈希的资源地址，浏览器复用缓存。

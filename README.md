@@ -37,7 +37,7 @@ apps/
     src/content.ts     已确认社团资料与培养方向
     src/brand.ts       正式 Logo / favicon 接入
     src/style.css      设计变量与响应式样式
-    src/assets/        原图接入目录（原始 Logo 尚待提供）
+    src/assets/        用户确认的透明背景 Logo
   functions/           Node.js + TypeScript 云函数
     src/index.ts       CloudBase 入口 main，HTTP 请求分发
     src/local.ts       本地 HTTP 适配器
@@ -119,7 +119,7 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 
 `src/style.css` 集中定义蓝白主色、红色强调、字体、间距、边框、圆角和阴影变量。布局使用细线分区与留白，避免后台卡片模板；导航和页脚复用，路由懒加载。PCB 与波形为自行绘制的轻量 SVG 工程示意图，不是正式标志，也不冒充社团作品。使用系统字体，没有外部字体、素材 CDN 或付费组件依赖。提供跳转正文链接、可见键盘焦点和减少动画偏好支持。
 
-**Logo 尚未完成接入：云端只保留了上一轮生成图，原始上传文件不可读取；按用户要求没有使用生成图代替正式标志。** 导航、首页和页脚目前明确显示“原图待补充”，没有伪造 Logo 或 favicon。请提供原始文件并保存为 `apps/web/src/assets/electronic-club-logo.png`，共享组件会在构建时自动加载并通过圆形容器展示，保持内部比例、图形、颜色和文字不变。`brand.ts` 会将同一原始 PNG 注册为 favicon，不重新绘制。此路径为约定接入位置，**当前文件不存在**。资源作为 Vite 构建资产输出，带哈希缓存地址。
+Logo 已接入：使用用户在对话中明确确认的第二张透明背景版本，实际文件为 `apps/web/src/assets/electronic-club-logo.png`。资源按原文件复制，未进一步重绘、改色或改变比例。导航、首页和页脚共用该资源，`brand.ts` 将同一 PNG 注册为 favicon；Vite 输出带哈希的资源地址，浏览器复用缓存。
 
 ## 本轮验证
 

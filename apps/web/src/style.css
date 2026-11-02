@@ -197,26 +197,12 @@ svg {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: #000;
+  background: transparent;
 }
 .brand-logo img {
   width: 100%;
   height: 100%;
   object-fit: contain;
-}
-.brand-logo--pending {
-  border: 1px dashed #a8b9d0;
-  background: var(--wash);
-  color: #526986;
-}
-.logo-pending {
-  font-size: 10px;
-  text-align: center;
-  line-height: 1.2;
-  letter-spacing: 0;
-}
-.logo-pending small {
-  font-size: 7px;
 }
 .brand-name {
   font-size: 20px;
@@ -389,13 +375,6 @@ svg {
   font-size: 10px;
   color: var(--muted);
   margin-top: 3px;
-}
-.hero-caption .logo-pending {
-  font-size: 8px;
-}
-.hero-caption .logo-pending small {
-  font-size: 6px;
-  margin: 0;
 }
 .hero-bottom {
   border-top: 1px solid var(--line);

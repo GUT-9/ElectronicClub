@@ -1,13 +1,9 @@
-// The original asset must be supplied by the club; generated artwork is never a fallback.
-const originals = import.meta.glob('./assets/electronic-club-logo.png', {
-  eager: true,
-  query: '?url',
-  import: 'default',
-})
-export const officialLogo = Object.values(originals)[0] as string | undefined
+// User-approved second transparent-background version from this conversation.
+import logoUrl from './assets/electronic-club-logo.png'
+
+export const officialLogo = logoUrl
 
 export function installOfficialFavicon() {
-  if (!officialLogo) return
   const icon = document.createElement('link')
   icon.rel = 'icon'
   icon.type = 'image/png'
