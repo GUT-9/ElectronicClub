@@ -145,3 +145,11 @@ Logo 已接入：使用用户在对话中明确确认的第二张透明背景版
 ## 学号规则与初始化昵称
 
 学号支持4–24位ASCII英文字母与数字，统一大写、大小写不敏感；不接受空格或特殊字符，始终按字符串保存并保留前导零。共享规则位于 `packages/shared/src/student-id.ts`。初始化命令支持安全环境变量 `BOOTSTRAP_NICKNAME`，不硬编码个人资料。纯数字账号无需迁移；若有手工写入的小写字母数据，先执行只读碰撞审计再按 [安全迁移方案](docs/student-id-migration.md)处理，不能直接覆盖映射。本次仅完成代码修复和测试，未初始化或修改生产数据库。
+
+## 网页显示 API 连接失败
+
+页脚“检查服务连接”只请求 `/api/health`，不连接数据库，不需要CLOUDBASE_APIKEY。失败时展开“连接诊断”查看实际请求地址。HTTP404、返回HTML网页、超时、网络/CORS错误会分别提示；网络错误不能仅凭浏览器fetch异常判断一定是CORS。
+
+EdgeOne **前端构建环境变量** `VITE_API_BASE_URL` 应填写后端源地址（测试时为现有CloudBase默认网关，不含 `/api` 或 `/api/health`）；修改后必须重新构建部署。留空则访问当前网站的 `/api/health`；仓库edgeone.json没有配置后端代理，静态托管本身不会处理这个接口。后端 `ALLOWED_ORIGIN=https://eclub.gut9.cn`，应无尾部斜杠；只是在函数环境中修改VITE_API_BASE_URL不会更新前端产物。
+
+`CLOUDBASE_APIKEY`是本项目自定义的后端配置名，不是控制台内置选项。目前尚未验证该环境的Key获取与SQL角色授权方式；不要把管理员密码填进去。数据库连接与前端健康检查需分别验收。默认网关仅限开发测试，不能据此宣称正式生产登录或跨站Cookie可用。

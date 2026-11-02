@@ -1,3 +1,5 @@
+> **凭据说明更正：** `CLOUDBASE_APIKEY` 是本项目自定义的环境变量名，不是CloudBase控制台必然已有的配置。虽然官方SDK有accessKey认证分支，但未核实本环境可获得可用Key及SQL角色映射，因此这条通道尚未具备目标环境部署验证条件。不要自行编造Key，也不要用管理员密码代替。网页健康检查与此Key无关。
+
 # 用环境 ID 访问 CloudBase PostgreSQL：HTTPS 运行通道
 
 这是本轮新增的默认运行通道。数据仍在真实 PostgreSQL 中；没有换用文档数据库、内存数据库，也不通过管理 API 模拟跨请求事务。原 TCP 适配器保留，显式设置 `DB_DRIVER=postgres-tcp` 才启用。
