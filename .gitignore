@@ -11,3 +11,5 @@ coverage/
 apps/functions/deploy/
 
 artifacts/
+
+*bootstrap-private*.sql

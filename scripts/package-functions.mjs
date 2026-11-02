@@ -18,7 +18,14 @@ archive.pipe(output)
 archive.glob('**/*', {
   cwd: 'apps/functions/deploy',
   dot: true,
-  ignore: ['**/.env', '**/.env.*', '**/*.pem', '**/*.key'],
+  ignore: [
+    '**/.env',
+    '**/.env.*',
+    '**/*.pem',
+    '**/*.key',
+    '**/*bootstrap-private*.sql',
+    '**/*bootstrap*.sql',
+  ],
 })
 await archive.finalize()
 await complete

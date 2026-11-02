@@ -12,6 +12,7 @@ for (const [name, source] of Object.entries({
   bootstrap: 'bootstrap',
   diagnose: 'diagnose',
   maintenance: 'maintenance',
+  'offline-bootstrap': 'offline-bootstrap',
 }))
   await build({
     entryPoints: [`src/${source}.ts`],
@@ -51,3 +52,9 @@ await copyFile(
   '../../cloudbase/backend.env.example',
   'deploy/backend.env.example',
 )
+
+await copyFile(
+  '../../scripts/deploy-preflight.mjs',
+  'deploy/deploy-preflight.mjs',
+)
+await copyFile('../../scripts/verify-api.mjs', 'deploy/verify-api.mjs')

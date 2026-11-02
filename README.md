@@ -1,3 +1,5 @@
+> 最新一次性部署操作分工、官方管理API工具和离线初始化见 [控制台操作手册](docs/cloudbase-console-runbook.md)。
+
 > 最新部署路径已改为原生 PostgreSQL；旧文档 SDK 部署步骤不再适用。请优先阅读 [最终部署准备](docs/cloudbase-final-deploy.md)。未进行腾讯云生产部署。
 
 # ElectronicClub · 电子俱乐部

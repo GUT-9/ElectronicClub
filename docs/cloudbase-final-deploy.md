@@ -1,3 +1,5 @@
+> 补充：请优先按 [控制台/Agent/私有终端操作手册](cloudbase-console-runbook.md)执行。官方SDK迁移API已核查，新增离线初始化方案；云端操作仍未执行。
+
 # CloudBase 最终部署准备：原生 PostgreSQL
 
 **状态：代码、本地真实 PostgreSQL 测试和 ZIP 准备完成不等于腾讯云部署成功。未连接或迁移真实环境、未创建正式管理员、未改域名/DNS。**

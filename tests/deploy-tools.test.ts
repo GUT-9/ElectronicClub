@@ -1,0 +1,35 @@
+import { test } from 'node:test'
+import assert from 'node:assert/strict'
+import { migrations, deploy } from '../scripts/cloudbase-sql'
+test('management plan contains only schema/indexes, no role grants or nested transactions', async () => {
+  const items = await migrations()
+  assert.equal(items.length, 2)
+  for (const m of items) {
+    assert.match(m.Version, /^\d{14}$/)
+    assert.ok(!m.Query.startsWith('BEGIN;'))
+    assert.ok(!m.Query.includes('GRANT USAGE'))
+  }
+})
+test('management apply refuses conflicts, skips applied migrations and waits for task success', async () => {
+  let pushes = 0
+  const db = {
+    previewPGUserMigrations: async () => ({ Executable: true, Pending: [{}] }),
+    pushPGUserMigrations: async () => {
+      pushes++
+      return { TaskId: 'test' }
+    },
+    describeTaskResult: async () => ({ Status: 'Succeed' }),
+    executePGSql: async () => ({}),
+  }
+  assert.equal((await deploy(db, 'test', await migrations())).mode, 'preview')
+  assert.equal(pushes, 0)
+  assert.equal(
+    (await deploy(db, 'test', await migrations(), true, async () => {})).status,
+    'succeeded',
+  )
+  db.previewPGUserMigrations = async () => ({ Executable: false, Pending: [] })
+  await assert.rejects(() => deploy(db, 'test', [], true))
+  assert.equal(pushes, 1)
+  db.previewPGUserMigrations = async () => ({ Executable: true, Pending: [] })
+  assert.equal((await deploy(db, 'test', [], true)).status, 'already_applied')
+})

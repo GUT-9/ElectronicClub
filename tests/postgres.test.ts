@@ -1,4 +1,5 @@
 import { test } from 'node:test'
+import { generateBootstrapSql } from '../apps/functions/src/offline-bootstrap'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { Pool } from 'pg'
@@ -55,6 +56,18 @@ test(
           )
         ).rows[0].rolsuper,
         false,
+      )
+      const offline = await generateBootstrapSql(
+        { studentId: '00offline1', name: 'Offline test', nickname: 'TEST' },
+        'Offline-Test-Password123',
+      )
+      assert.ok(!offline.includes('Offline-Test-Password123'))
+      await runtimePool.query(offline)
+      await assert.rejects(() => runtimePool!.query(offline))
+      await runtimePool.query('ROLLBACK')
+      // Dedicated local test schema only: reset generated records before ordinary bootstrap coverage.
+      await pool.query(
+        'TRUNCATE electronicclub.user_roles,electronicclub.credentials,electronicclub.sessions,electronicclub.student_ids,electronicclub.privacy_jobs,electronicclub.users,electronicclub.roles,electronicclub.permissions,electronicclub.audit_logs,electronicclub.import_jobs,electronicclub.login_limits,electronicclub.system CASCADE',
       )
       const service = new MemberService(store),
         password = 'Pg-Validation-Password123'
