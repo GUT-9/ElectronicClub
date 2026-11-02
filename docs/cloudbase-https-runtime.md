@@ -90,3 +90,14 @@ bootstrap 支持字母学号、大写规范化、前导零和 nickname；密码�
 签名库采用官方@cloudbase/signature-nodejs 2.2.2，运行依赖已纳入独立锁文件和ZIP。不引入整套SDK，不记录原始身份错误或令牌。并发请求共享令牌交换，按有效期提前刷新，平台临时凭据轮换时重新交换；SQL权限边界保持不变。
 
 本轮身份修复验证：npm ci与npm run check通过，31项测试全部执行；Node18.15完整部署目录通过签名换令牌（本地测试网关）、真实本地PG登录/Cookie/RBAC、诊断及重复初始化。临时凭据与令牌均为测试值，不连接腾讯云真实身份服务。实际平台凭据注入与SQL角色映射仍须云端验收。
+
+
+## 已到http_rpc阶段、但只有RDB_HTTP_FAILED时
+
+这表示后端已尝试调用SQL REST/RPC接口，尚不能据此断言表已创建、角色授权正确或令牌已被SQL接口接受。云函数外层执行日志status_code:200不等于API成功；应读取返回对象中的statusCode（如503）。
+
+先在SQL Editor执行 `cloudbase/sql/editor-login-check.sql`（只读）：表或函数为NULL时，先完成对应SQL安装；已存在时不要删除、重建用户表。SQL安装不会随上传ZIP自动执行。存在性检查不证明函数运行身份的权限。
+
+新版错误日志保留upstreamStatus、允许列表中的upstreamCode、可识别的upstreamRequestId、operation和responseKind。例如INVALID_PATH会映射为RDB_ENDPOINT_NOT_AVAILABLE；PGRST106为RDB_SCHEMA_NOT_EXPOSED；嵌套的PostgREST错误也会识别。未知代码记为UNRECOGNIZED，不输出message/details/hint、原始HTML/JSON或凭据。前端继续返回通用503，不公开内部诊断。
+
+当表和RPC均存在但仍失败时，上传新版ZIP后只提供这条安全JSON日志即可继续定位，不需要重新调整前端地址或提供密码。本轮诊断改动不是腾讯云数据库部署成功的证明。

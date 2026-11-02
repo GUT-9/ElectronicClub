@@ -45,6 +45,7 @@ async function run() {
 run().catch((error) => {
   console.error(
     JSON.stringify({
+      ...(error instanceof DatabaseFailure ? error.diagnostic : undefined),
       stage:
         error instanceof DatabaseFailure ? error.stage : 'database_diagnostic',
       code:

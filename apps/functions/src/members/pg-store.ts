@@ -17,10 +17,18 @@ function table(name: string) {
   if (!tables.has(name)) throw new Error('INVALID_TABLE')
   return `electronicclub.${name}`
 }
+export interface DatabaseDiagnostic {
+  upstreamStatus?: number
+  upstreamCode?: string
+  upstreamRequestId?: string
+  operation?: string
+  responseKind?: 'json' | 'html' | 'other'
+}
 export class DatabaseFailure extends Error {
   constructor(
     public stage: string,
     public safeCode: string,
+    public diagnostic?: DatabaseDiagnostic,
   ) {
     super('Database unavailable')
   }

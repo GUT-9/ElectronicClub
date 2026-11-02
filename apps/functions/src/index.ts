@@ -272,6 +272,7 @@ export function createHandler(resolveService: () => MemberService) {
       console.error(
         JSON.stringify({
           requestId,
+          ...(error instanceof DatabaseFailure ? error.diagnostic : undefined),
           category: error instanceof DatabaseFailure ? 'database' : 'internal',
           stage: error instanceof DatabaseFailure ? error.stage : 'request',
           code:

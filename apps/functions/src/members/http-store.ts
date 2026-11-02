@@ -1,6 +1,7 @@
 import type { Store, Transaction, ListOptions } from './store'
 import { DatabaseFailure } from './pg-store'
 import { cloudbaseAuthorization } from './cloudbase-auth'
+import { rdbDiagnostic, rdbFailureCode } from './rdb-diagnostics'
 
 export type Rpc = (
   name: string,
@@ -35,21 +36,12 @@ export function cloudbaseRpc(): Rpc {
     }
     if (!response.ok) {
       if (response.status === 401) auth.invalidate()
-      let code = ''
-      try {
-        code = (await response.json()).code ?? ''
-      } catch {
-        /* No raw provider errors in logs. */
-      }
-      const safeCode =
-        response.status === 401 || response.status === 403 || code === '42501'
-          ? 'RDB_HTTP_PERMISSION_DENIED'
-          : code === 'PGRST202' || code === '42883'
-            ? 'RDB_RPC_NOT_INSTALLED'
-            : code === '42P01'
-              ? 'RDB_SCHEMA_NOT_INSTALLED'
-              : 'RDB_HTTP_FAILED'
-      throw new DatabaseFailure('http_rpc', safeCode)
+      const diagnostic = await rdbDiagnostic(response, name)
+      throw new DatabaseFailure(
+        'http_rpc',
+        rdbFailureCode(diagnostic),
+        diagnostic,
+      )
     }
     try {
       return await response.json()
