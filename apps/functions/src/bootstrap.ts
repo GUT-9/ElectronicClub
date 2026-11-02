@@ -1,3 +1,4 @@
+import { HttpStore } from './members/http-store'
 // Private deployment CLI. Not exported by the HTTP bundle.
 import { MemberService } from './members/service'
 import { PgStore as CloudStore, createPool } from './members/pg-store'
@@ -29,7 +30,10 @@ async function run() {
     throw new Error(
       'Set BOOTSTRAP_STUDENT_ID, BOOTSTRAP_NAME, BOOTSTRAP_PASSWORD securely',
     )
-  const store = new CloudStore()
+  const store =
+    process.env.DB_DRIVER === 'postgres-tcp'
+      ? new CloudStore()
+      : new HttpStore()
   try {
     if (await store.read('system', 'control')) {
       console.log('Already initialized; no changes made')
@@ -53,7 +57,7 @@ async function run() {
       throw error
     }
   } finally {
-    await store.pool.end()
+    if (store instanceof CloudStore) await store.pool.end()
   }
 }
 run().catch(() => {

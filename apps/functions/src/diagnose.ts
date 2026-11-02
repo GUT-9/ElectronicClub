@@ -1,6 +1,21 @@
+import { HttpStore } from './members/http-store'
 // Private deployment check. Never registered as an HTTP route.
-import { createPool } from './members/pg-store'
+import { createPool, DatabaseFailure } from './members/pg-store'
 async function run() {
+  if (process.env.DB_DRIVER !== 'postgres-tcp') {
+    const store = new HttpStore()
+    await store.run(async (tx) => {
+      await tx.get('system', 'control')
+    })
+    console.log(
+      JSON.stringify({
+        httpsRpc: true,
+        transactionRoundtrip: true,
+        initialized: !!(await store.read('system', 'control')),
+      }),
+    )
+    return
+  }
   const pool = createPool()
   try {
     const connection = await pool.connect()
@@ -27,9 +42,14 @@ async function run() {
     await pool.end()
   }
 }
-run().catch(() => {
+run().catch((error) => {
   console.error(
-    JSON.stringify({ stage: 'database_diagnostic', code: 'DB_CHECK_FAILED' }),
+    JSON.stringify({
+      stage:
+        error instanceof DatabaseFailure ? error.stage : 'database_diagnostic',
+      code:
+        error instanceof DatabaseFailure ? error.safeCode : 'DB_CHECK_FAILED',
+    }),
   )
   process.exitCode = 1
 })

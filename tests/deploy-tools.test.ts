@@ -1,9 +1,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { migrations, deploy } from '../scripts/cloudbase-sql'
-test('management plan contains only schema/indexes, no role grants or nested transactions', async () => {
+test('management plan contains schema/indexes/RPCs without outer transactions', async () => {
   const items = await migrations()
-  assert.equal(items.length, 2)
+  assert.equal(items.length, 3)
   for (const m of items) {
     assert.match(m.Version, /^\d{14}$/)
     assert.ok(!m.Query.startsWith('BEGIN;'))

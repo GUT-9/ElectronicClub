@@ -1,0 +1,154 @@
+import type { Store, Transaction, ListOptions } from './store'
+import { DatabaseFailure } from './pg-store'
+
+export type Rpc = (
+  name: string,
+  args: Record<string, unknown>,
+) => Promise<unknown>
+
+// Same PostgREST endpoint and Bearer authentication used by the official Node SDK's rdb().
+// The key must belong to a private, restricted server role; never use a browser/anon key.
+export function cloudbaseRpc(): Rpc {
+  const env = process.env.CLOUDBASE_ENV_ID,
+    key = process.env.CLOUDBASE_APIKEY
+  if (!env || !/^[a-zA-Z0-9-]+$/.test(env) || !key)
+    throw new DatabaseFailure('configuration', 'CLOUDBASE_HTTP_AUTH_REQUIRED')
+  const base = `https://${env}.api.tcloudbasegateway.com/v1/rdb/rest/rpc/`
+  return async (name, args) => {
+    let response: Response
+    try {
+      response = await fetch(base + name, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${key}`,
+          'Content-Type': 'application/json',
+          'Accept-Profile': 'public',
+          'Content-Profile': 'public',
+        },
+        body: JSON.stringify(args),
+        signal: AbortSignal.timeout(15000),
+      })
+    } catch {
+      throw new DatabaseFailure('http_connect', 'RDB_HTTP_UNREACHABLE')
+    }
+    if (!response.ok) {
+      let code = ''
+      try {
+        code = (await response.json()).code ?? ''
+      } catch {
+        /* No raw provider errors in logs. */
+      }
+      const safeCode =
+        response.status === 401 || response.status === 403 || code === '42501'
+          ? 'RDB_HTTP_PERMISSION_DENIED'
+          : code === 'PGRST202' || code === '42883'
+            ? 'RDB_RPC_NOT_INSTALLED'
+            : code === '42P01'
+              ? 'RDB_SCHEMA_NOT_INSTALLED'
+              : 'RDB_HTTP_FAILED'
+      throw new DatabaseFailure('http_rpc', safeCode)
+    }
+    try {
+      return await response.json()
+    } catch {
+      throw new DatabaseFailure('http_decode', 'RDB_HTTP_INVALID_RESPONSE')
+    }
+  }
+}
+
+interface Snapshot {
+  data: object | null
+  etag: string | null
+}
+interface Read extends Snapshot {
+  collection: string
+  id: string
+}
+interface Write {
+  collection: string
+  id: string
+  data: object | null
+}
+
+export class HttpStore implements Store {
+  constructor(private rpc: Rpc = cloudbaseRpc()) {}
+
+  async read<T>(collection: string, id: string): Promise<T | null> {
+    const snapshot = (await this.rpc('ec_read', {
+      p_collection: collection,
+      p_id: id,
+    })) as Snapshot
+    return snapshot.data as T | null
+  }
+
+  async list<T>(
+    collection: string,
+    filter: Record<string, unknown>,
+    options: ListOptions,
+  ) {
+    return (await this.rpc('ec_list', {
+      p_collection: collection,
+      p_filter: filter,
+      p_offset: options.offset,
+      p_limit: options.limit,
+    })) as { items: T[]; total: number }
+  }
+
+  async run<T>(fn: (tx: Transaction) => Promise<T>): Promise<T> {
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const reads = new Map<string, Promise<Read>>(),
+        writes = new Map<string, Write>()
+      // Share in-flight reads too: parallel role lookups must observe the same version.
+      const load = (collection: string, id: string) => {
+        const key = collection + '/' + id
+        if (!reads.has(key))
+          reads.set(
+            key,
+            this.rpc('ec_read', {
+              p_collection: collection,
+              p_id: id,
+            }).then((snapshot) => ({
+              collection,
+              id,
+              ...(snapshot as Snapshot),
+            })),
+          )
+        return reads.get(key)!
+      }
+      const tx: Transaction = {
+        get: async <R>(collection: string, id: string) => {
+          const key = collection + '/' + id
+          return structuredClone(
+            writes.has(key)
+              ? writes.get(key)!.data
+              : (await load(collection, id)).data,
+          ) as R | null
+        },
+        set: async (collection, id, data) => {
+          await load(collection, id)
+          writes.set(collection + '/' + id, {
+            collection,
+            id,
+            data: structuredClone(data),
+          })
+        },
+        remove: async (collection, id) => {
+          await load(collection, id)
+          writes.set(collection + '/' + id, { collection, id, data: null })
+        },
+      }
+      const result = await fn(tx)
+      // One database function call is one real SQL transaction. Never send HTTP BEGIN/COMMIT.
+      const commit = (await this.rpc('ec_commit', {
+        p_reads: (await Promise.all(reads.values())).map(
+          ({ collection, id, etag }) => ({ collection, id, etag }),
+        ),
+        p_writes: [...writes.values()],
+      })) as { ok: boolean; conflict?: boolean }
+      if (commit.ok) return result
+      if (!commit.conflict)
+        throw new DatabaseFailure('http_commit', 'RDB_COMMIT_REJECTED')
+    }
+    throw new DatabaseFailure('http_commit', 'RDB_CONFLICT_RETRY_EXHAUSTED')
+  }
+}

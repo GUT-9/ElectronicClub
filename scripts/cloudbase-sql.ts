@@ -33,6 +33,7 @@ export async function migrations(): Promise<Migration[]> {
   for (const [Version, Name, file] of [
     ['20261102000100', 'electronicclub_schema', '001-schema.sql'],
     ['20261102000200', 'electronicclub_indexes', '002-indexes.sql'],
+    ['20261103000100', 'electronicclub_http_rpc', '004-http-rpc.sql'],
   ]) {
     const original = await readFile(`cloudbase/sql/${file}`, 'utf8')
     // This official migration API consumes full SQL files. Do not nest explicit BEGIN/COMMIT.

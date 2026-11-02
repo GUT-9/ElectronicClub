@@ -323,3 +323,246 @@ test(
     }
   },
 )
+
+test(
+  'real PostgreSQL over HTTP RPC: bootstrap, login, imports, atomic commit, conflict retry and private grants',
+  { skip: !url },
+  async () => {
+    const { HttpStore } = await import(
+      '../apps/functions/src/members/http-store'
+    )
+    const { createServer } = await import('node:http')
+    assert.equal(new URL(url!).hostname, '127.0.0.1')
+    assert.equal(new URL(url!).pathname, '/club_test')
+    const admin = new Pool({ connectionString: url })
+    const restrictedUrl = new URL(url!)
+    restrictedUrl.username = 'electronicclub_api'
+    restrictedUrl.password = 'local-restricted-test'
+    const backend = new Pool({ connectionString: restrictedUrl.href, max: 4 })
+    const server = createServer(async (request, response) => {
+      try {
+        assert.equal(
+          request.headers.authorization,
+          'Bearer test-only-server-key',
+        )
+        const chunks: Buffer[] = []
+        for await (const chunk of request) chunks.push(Buffer.from(chunk))
+        const args = JSON.parse(Buffer.concat(chunks).toString())
+        const operations: Record<string, [string, unknown[]]> = {
+          '/ec_read': [
+            'SELECT public.ec_read($1,$2) AS value',
+            [args.p_collection, args.p_id],
+          ],
+          '/ec_list': [
+            'SELECT public.ec_list($1,$2,$3,$4) AS value',
+            [args.p_collection, args.p_filter, args.p_offset, args.p_limit],
+          ],
+          '/ec_commit': [
+            'SELECT public.ec_commit($1,$2) AS value',
+            [JSON.stringify(args.p_reads), JSON.stringify(args.p_writes)],
+          ],
+        }
+        const operation = operations[request.url!]
+        assert.ok(operation)
+        const result = await backend.query(operation[0], operation[1])
+        response.setHeader('Content-Type', 'application/json')
+        response.end(JSON.stringify(result.rows[0].value))
+      } catch {
+        response.statusCode = 503
+        response.end('{"error":"DB_FAILED"}')
+      }
+    })
+    try {
+      await admin.query(
+        'TRUNCATE electronicclub.users,electronicclub.roles,electronicclub.permissions,electronicclub.system,electronicclub.audit_logs,electronicclub.import_jobs,electronicclub.login_limits CASCADE',
+      )
+      const sql = await readFile('cloudbase/sql/004-http-rpc.sql', 'utf8')
+      await admin.query(sql)
+      await admin.query(sql) // Existing data/functions are safe on retry.
+      assert.equal(
+        (
+          await admin.query(
+            "SELECT EXISTS(SELECT 1 FROM pg_proc p CROSS JOIN LATERAL aclexplode(p.proacl) a WHERE p.oid='public.ec_commit(jsonb,jsonb)'::regprocedure AND a.grantee=0 AND a.privilege_type='EXECUTE') AS allowed",
+          )
+        ).rows[0].allowed,
+        false,
+      )
+      // A superuser key is rejected, rather than silently bypassing restricted-role checks.
+      await assert.rejects(() =>
+        admin.query("SELECT public.ec_read('system','control')"),
+      )
+      await new Promise<void>((resolve) =>
+        server.listen(0, '127.0.0.1', resolve),
+      )
+      const address = server.address() as { port: number }
+      let conflicts = 0
+      const store = new HttpStore(async (name, args) => {
+        const response = await fetch(
+          `http://127.0.0.1:${address.port}/${name}`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer test-only-server-key',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(args),
+          },
+        )
+        if (!response.ok) throw new Error('HTTP_DATABASE_FAILED')
+        const value = await response.json()
+        if (value.conflict) conflicts++
+        return value
+      })
+      const service = new MemberService(store)
+      const password = 'HTTP-Validation-Password123'
+      const root = await service.bootstrap(
+        { studentId: '00httpa1', name: 'HTTP测试', nickname: 'TEST' },
+        password,
+      )
+      await assert.rejects(() =>
+        service.bootstrap(
+          { studentId: '00httpa2', name: '不得重建' },
+          password,
+        ),
+      )
+      const login = await service.login(
+        { studentId: '00HTTPA1', password },
+        'test',
+      )
+      const token = login.token!
+      assert.ok(token)
+      assert.equal((login.data as Identity).super, true)
+      assert.equal((login.data as Identity).member.nickname, 'TEST')
+      assert.equal(
+        (
+          await service.login(
+            { studentId: '00httpa1', password: 'wrong' },
+            'test',
+          )
+        ).status,
+        401,
+      )
+      const member = (
+        await service.execute(
+          token,
+          'POST',
+          '/api/members',
+          { studentId: '001a2345', name: 'HTTP成员' },
+          {},
+        )
+      ).data as Member
+      await assert.rejects(() =>
+        service.execute(
+          token,
+          'POST',
+          '/api/members',
+          { studentId: '001A2345', name: '重复' },
+          {},
+        ),
+      )
+      assert.equal(
+        (
+          await store.list<Member>(
+            'users',
+            { _search: '001a', roleIds: 'role_member' },
+            { offset: 0, limit: 10 },
+          )
+        ).total,
+        1,
+      )
+      const book = new ExcelJS.Workbook()
+      await book.xlsx.load(
+        (await templateWorkbook()) as unknown as ExcelJS.Buffer,
+      )
+      book.worksheets[0]!.addRow(['000ab789', '导入HTTP'])
+      const job = (
+        await service.prepareImport(token, {
+          file: Buffer.from(await book.xlsx.writeBuffer()).toString('base64'),
+        })
+      ).data as ImportJob
+      const results = await Promise.all(
+        [0, 1].map(() =>
+          service.execute(
+            token,
+            'POST',
+            `/api/imports/${job.id}/process`,
+            { offset: 0 },
+            {},
+          ),
+        ),
+      )
+      assert.ok(
+        results.every((result) => (result.data as ImportJob).created === 1),
+      )
+      assert.equal(
+        (
+          await store.list<Member>(
+            'users',
+            { _search: '000AB789' },
+            { offset: 0, limit: 10 },
+          )
+        ).items[0]!.studentId,
+        '000AB789',
+      )
+      // Failure after an earlier SQL write must roll back the entire RPC statement.
+      await assert.rejects(() =>
+        store.run(async (tx) => {
+          await tx.set('system', 'must-rollback', { value: 1 })
+          await tx.set('users', 'duplicate-http', {
+            ...member,
+            uid: 'duplicate-http',
+          })
+        }),
+      )
+      assert.equal(await store.read('system', 'must-rollback'), null)
+      await store.run((tx) => tx.set('system', 'counter', { value: 0 }))
+      await Promise.all(
+        [0, 1, 2].map(() =>
+          store.run(async (tx) => {
+            const counter = (await tx.get<{ value: number }>(
+              'system',
+              'counter',
+            ))!
+            await new Promise((resolve) => setTimeout(resolve, 15))
+            await tx.set('system', 'counter', { value: counter.value + 1 })
+          }),
+        ),
+      )
+      assert.equal(
+        (await store.read<{ value: number }>('system', 'counter'))!.value,
+        3,
+      )
+      assert.ok(conflicts > 0)
+      const protectedResults = await Promise.allSettled([
+        service.execute(token, 'DELETE', `/api/members/${root.uid}`, {}, {}),
+        service.execute(
+          token,
+          'PATCH',
+          `/api/members/${root.uid}/status`,
+          { status: 'disabled' },
+          {},
+        ),
+      ])
+      assert.ok(
+        protectedResults.every((result) => result.status === 'rejected'),
+      )
+      assert.equal(
+        (await store.read<Role>('roles', 'role_super'))!.memberCount,
+        1,
+      )
+      assert.equal(
+        (await service.execute(token, 'GET', '/api/auth/me', {}, {})).status ??
+          200,
+        200,
+      )
+      console.log(
+        'HTTP bridge + real PostgreSQL RPC assertions passed; NOT a CloudBase production deployment test',
+      )
+    } finally {
+      server.closeAllConnections()
+      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await backend.end()
+      await admin.end()
+    }
+  },
+)

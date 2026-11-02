@@ -1,3 +1,5 @@
+> **运行时更新：默认改为PostgreSQL HTTPS RPC，不再必须提供TCP地址。请先阅读 [最新HTTPS操作步骤](cloudbase-https-runtime.md)。以下TCP配置仅适用于显式 DB_DRIVER=postgres-tcp。**
+
 # 第二阶段：成员与动态权限
 
 当前为可运行实现，自动化测试使用显式内存适配器；尚未在真实腾讯云环境部署或验证。生产默认只使用 CloudBase 文档数据库，配置或网络失败不会回退到内存，也不会自动生成管理员。

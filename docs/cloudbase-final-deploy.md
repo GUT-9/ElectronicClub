@@ -1,3 +1,5 @@
+> **运行时更新：默认改为PostgreSQL HTTPS RPC，不再必须提供TCP地址。请先阅读 [最新HTTPS操作步骤](cloudbase-https-runtime.md)。以下TCP配置仅适用于显式 DB_DRIVER=postgres-tcp。**
+
 > 补充：请优先按 [控制台/Agent/私有终端操作手册](cloudbase-console-runbook.md)执行。官方SDK迁移API已核查，新增离线初始化方案；云端操作仍未执行。
 
 # CloudBase 最终部署准备：原生 PostgreSQL
