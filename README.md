@@ -2,7 +2,7 @@
 
 电子俱乐部成立于1991年，挂靠物理与电子科学学院，以培养电子技术基本技能、开展电子设计与创新实践、通过学科竞赛促进学习为宗旨。本项目不包含未经确认的现任成员或指导老师资料。
 
-当前工程提供蓝白工程风官网、多页面视觉结构、健康检查、共享 API 类型和可复现的开发与构建流程。仅发布用户确认的社团信息；重点赛事只展示全国大学生电子设计竞赛（电赛），没有虚构成员、指导老师、活动或获奖记录。论坛、报名、Excel 导入、RBAC 和数据库读写留待后续开发。
+当前工程包含蓝白工程风官网，以及第二阶段成员账号、Excel 导入、成员管理和动态 RBAC。普通官网内容与 Logo 保持不变；论坛、活动报名、文章发布及弹窗仅预留未来权限定义，尚未开发其业务。成员系统使用 CloudBase 文档数据库适配器，**尚未部署到真实腾讯云环境**，本地内存适配器测试不代表线上验证。详细配置、完整API、集合索引、一次性初始化及隐私清理见 [成员系统部署文档](docs/member-system.md)。
 
 ## 开发环境
 
@@ -15,7 +15,7 @@ npm run dev:api
 npm run dev
 ```
 
-前端默认端口 5173，后端默认端口 3001。Vite 将 `/api` 转发到本地后端。在任意官网页面的页脚点击“检查服务连接”，成功显示“后端连接正常”。默认不需要密钥、不需要 CloudBase 账号，也不启动数据库。
+前端默认端口 5173，后端默认端口 3001。Vite 将 `/api` 转发到本地后端。在任意官网页面的页脚点击“检查服务连接”，成功显示“后端连接正常”。官网和健康检查默认不需要密钥；成员业务需要配置真实 CloudBase 数据库，或按照部署文档显式启用仅本地使用的内存适配器。
 
 ```bash
 curl --fail http://127.0.0.1:3001/api/health
@@ -47,7 +47,7 @@ tests/                云函数协议、错误路由与 CORS 测试
 edgeone.json           EdgeOne 构建与已知页面的 SPA 回退
 ```
 
-前端由 Vue Router 管理页面，使用 Pinia 保存健康检查状态，Element Plus 按需提供健康检查按钮与登录输入框，页面排版使用自定义布局。后端类型引用在编译时擦除，当前云函数无运行时第三方依赖。
+前端由 Vue Router 管理页面，使用 Pinia 保存健康检查状态，Element Plus 按需提供健康检查按钮与登录输入框，页面排版使用自定义布局。后端类型引用在编译时擦除，本阶段云函数使用 CloudBase SDK、Zod、ExcelJS 和 ZIP 预检依赖，必须安装云函数运行依赖。
 
 ## 检查和构建
 
@@ -56,7 +56,7 @@ edgeone.json           EdgeOne 构建与已知页面的 SPA 回退
 ```bash
 npm run lint           # ESLint，覆盖 TS、Vue 和配置
 npm run typecheck      # 所有 workspace 的 TS / Vue 类型检查
-npm test               # Node test runner + tsx，3 项后端行为测试
+npm test               # Node test runner + tsx，成员与安全行为测试
 npm run build          # 顺序构建共享包、云函数和前端
 npm run check          # 上述全部检查，CI 使用相同命令
 ```
@@ -70,25 +70,25 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 ```text
 浏览器 ──> EdgeOne Makers 静态站点（apps/web/dist）
    └─ HTTPS /api/health ──> CloudBase HTTP 服务 ──> Node 云函数
-                                                 └─ CloudBase 文档数据库（后续阶段）
+                                                 └─ CloudBase 文档数据库（成员与权限）
 ```
 
 ### CloudBase 后端
 
-1. 创建 CloudBase 环境和 Node.js 云函数（例如 `electronicclub-api`），选择控制台支持的 Node.js 18.15 或更新运行时。当前输出目标为 ES2022，入口为 `index.main`。
-2. 在根目录运行 `npm run check`，将 `apps/functions/dist` **目录内**编译后的文件上传至云函数代码根目录，使 `index.js` 位于根目录。当前无运行时依赖，不要上传整个 Monorepo 或 `node_modules`。
+1. 创建 CloudBase 环境和 Node.js 云函数（例如 `electronicclub-api`），选择平台可用的 Node.js 22.12+ 运行时，入口为 `index.main`。若目标环境没有该运行时，须先核对支持版本并调整构建目标、复测依赖，不能直接沿用旧的 Node.js 18 部署说明。
+2. 在根目录运行 `npm run check`，将 `apps/functions/deploy` **目录内**的 `index.js` 和 `package.json` 上传至云函数代码根目录，按该清单安装运行依赖。不要再只上传旧的 dist；具体初始化、规则和身份配置见成员系统部署文档。
 3. 配置 CloudBase 的 HTTP 访问服务，将 `/api` 路由关联到该函数，确保传给函数的事件含原始 `path`、`httpMethod`、`headers`，访问 `/api/health` 时 `path` 为 `/api/health`。使用支持 `{statusCode, headers, body}` 返回结构的 HTTP 集成；在控制台核对集成设置。若平台剥离 `/api` 前缀或包裹响应，需调整 HTTP 服务映射，不要仅凭云函数控制台直接调用认定 HTTP 集成成功。
 4. 为公开健康检查开放相应 HTTP 访问权限，配置 `ALLOWED_ORIGIN` 为最终前端源地址。它仅控制浏览器 CORS，不是鉴权方案。仅开放必要路由；未来敏感接口需要单独设计鉴权。
 5. 使用真实 HTTPS 地址请求 `/api/health`，确认状态码 200、Content-Type 为 JSON、响应是下述协议，再验证 OPTIONS 和来自前端源地址的 CORS 响应。
 
-此阶段没有数据库集合、SDK 初始化或数据库权限规则。后续在云函数中通过 CloudBase 服务端身份访问文档数据库，避免在浏览器放置管理密钥。
+成员系统由云函数通过服务端身份访问真实文档数据库；集合、索引和拒绝客户端访问规则见 `cloudbase/` 与部署文档。浏览器不保存管理密钥。
 
 ### EdgeOne Makers 前端
 
 1. 导入 GitHub 仓库，使用仓库根目录作为构建工作目录（共享 workspace 位于根目录）。
 2. 安装命令 `npm ci`，构建命令 `npm run build -w @electronic-club/web`，输出目录 `apps/web/dist`。Node 版本选择 22.12+。
-3. 设置构建变量 `VITE_API_BASE_URL=https://你的CloudBaseHTTP服务域名`，重新构建部署。不要将 CloudBase 密钥配置为 Vite 变量。
-4. 根目录已添加 `edgeone.json`，记录上述构建参数，并为 `/about`、`/news`、`/activities`、`/community`、`/login`、`/admin` 及三类详情路径配置到 `/index.html` 的重写。规则不覆盖 `/assets/*` 或 `/api/*`。确保平台读取仓库根配置；如控制台配置覆盖仓库配置，应同步这些参数。配置字段及路径语法已对照官方 npm 包 `edgeone@1.6.47` 核对，腾讯云线上路由仍需部署后实际刷新验证。后续新增页面需同步重写规则。
+3. 设置构建变量 `VITE_API_BASE_URL=https://你的CloudBaseHTTP服务域名`，重新构建部署。成员 Cookie 登录要求前后端使用同站点自定义 HTTPS 域名（如 club.example.edu 与 api.example.edu），或可信同源代理；不同默认站点域名不能只配置 CORS 就认为可以登录。不要将 CloudBase 密钥配置为 Vite 变量。
+4. 根目录已添加 `edgeone.json`，记录上述构建参数，并为 `/about`、`/news`、`/activities`、`/community`、`/login`、`/admin` 、`/account`、`/change-password`、`/admin/*` 及三类详情路径配置到 `/index.html` 的重写。规则不覆盖 `/assets/*` 或 `/api/*`。确保平台读取仓库根配置；如控制台配置覆盖仓库配置，应同步这些参数。配置字段及路径语法已对照官方 npm 包 `edgeone@1.6.47` 核对，腾讯云线上路由仍需部署后实际刷新验证。后续新增页面需同步重写规则。
 5. 在部署后的首页点击页脚“检查服务连接”，验证真实前端到 CloudBase 的请求和 CORS。云部署需要腾讯云账号、环境与域名，本初始化不创建收费资源，也不声称已部署。
 
 ## API
@@ -109,11 +109,16 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 | `/about` | 社团介绍与电赛实践理念 |
 | `/news`、`/activities`、`/community` | 统一列表视觉与真实空状态，无示例内容 |
 | `/news/:id`、`/activities/:id`、`/community/:id` | 详情布局及未找到状态，无虚构正文 |
-| `/login` | 登录视觉结构，输入与提交禁用，不收集凭据 |
-| `/admin` | 仅公开的后台布局预览，可切换内容区域；没有任何后台业务数据或管理操作 |
+| `/login` | 学号密码登录，失败提示、会话Cookie |
+| `/change-password` | 首次强制改密及后续改密 |
+| `/account` | 真实用户档案、自助资料修改、登出和会话撤销 |
+| `/admin`、`/admin/members`、`/admin/members/:id` | 鉴权后的管理导航、成员查询/创建/编辑/角色/密码/状态/删除 |
+| `/admin/imports` | XLSX模板、上传预览、错误导出、确认与分批导入 |
+| `/admin/roles`、`/admin/permissions` | 数据库角色及分组权限配置 |
+| `/admin/audit` | 受权限保护的审计查询 |
 | 其他前端路径 | 站内 404 页面；未知路径直达的 HTTP 状态取决于部署平台 |
 
-真实可用的功能包括路由导航、移动菜单、锚点定位、服务健康检查。内容发布、论坛发帖评论、账号登录/用户中心、权限控制、报名和数据库功能尚未实现。后台布局预览不是权限保护实现，后续必须接入服务端鉴权后才可以开放管理 API。
+官网导航、移动菜单、锚点和健康检查保持可用。第二阶段代码实现成员登录、资料、管理、导入与RBAC，只有配置并部署数据库后才能用于生产；本地可显式使用测试适配器。内容发布、论坛发帖评论、活动报名尚未实现。后台现已由路由守卫和每个服务端接口的实时权限校验共同保护，不再是公开布局预览。
 
 ## 设计与资源
 
@@ -121,11 +126,11 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 
 Logo 已接入：使用用户在对话中明确确认的第二张透明背景版本，实际文件为 `apps/web/src/assets/electronic-club-logo.png`。资源按原文件复制，未进一步重绘、改色或改变比例。导航、首页和页脚共用该资源，`brand.ts` 将同一 PNG 注册为 favicon；Vite 输出带哈希的资源地址，浏览器复用缓存。
 
-## 本轮验证
+## 第二阶段验证与部署状态
 
-- 已执行 `npm ci` 与 `npm run check`（包含 ESLint、TypeScript、3 项后端测试及全工程生产构建）。
-- 使用系统 Chromium 检查 1440px、1920px、375px、430px：11 个页面均无横向溢出；测试菜单导航、登录禁用、后台预览切换及页脚真实健康请求。
-- 本地验证不等于腾讯云线上部署。部署后须再次刷新详情 URL、检查静态资源以及从前端调用 CloudBase 的真实跨域请求。
+`npm run check` 执行 lint、所有 workspace 类型检查、自动化安全测试与生产构建。测试使用独立的内存适配器，覆盖登录/强制改密/撤销、身份不可变字段、权限并集/越权、最后超级管理员、导入去重及前导零。另用真实 Chromium 在1440/1920/375/430px检查官网、用户中心与管理页面，实际走通本地账号创建、角色编辑、XLSX导入、首次改密与会话恢复。
+
+**尚未进行真实 CloudBase 事务、索引、身份凭据、网关 Cookie/CORS 或 EdgeOne 部署验证**。生产必须完成 [部署与初始化步骤](docs/member-system.md)，不能把本地测试通过当作已上线。依赖审计状态和已知限制也在该文档中说明。
 
 ## Git 协作
 

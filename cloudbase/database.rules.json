@@ -1,0 +1,46 @@
+{
+  "users": {
+    "read": false,
+    "write": false
+  },
+  "student_ids": {
+    "read": false,
+    "write": false
+  },
+  "credentials": {
+    "read": false,
+    "write": false
+  },
+  "sessions": {
+    "read": false,
+    "write": false
+  },
+  "roles": {
+    "read": false,
+    "write": false
+  },
+  "permissions": {
+    "read": false,
+    "write": false
+  },
+  "audit_logs": {
+    "read": false,
+    "write": false
+  },
+  "import_jobs": {
+    "read": false,
+    "write": false
+  },
+  "login_limits": {
+    "read": false,
+    "write": false
+  },
+  "system": {
+    "read": false,
+    "write": false
+  },
+  "privacy_jobs": {
+    "read": false,
+    "write": false
+  }
+}

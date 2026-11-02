@@ -4,6 +4,6 @@ import { officialLogo } from '../brand'
 
 <template>
   <span class="brand-logo">
-    <img :src="officialLogo" alt="电子俱乐部正式标志" width="80" height="80">
+    <img :src="officialLogo" alt="电子俱乐部正式标志" width="80" height="80" />
   </span>
 </template>

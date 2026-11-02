@@ -1,0 +1,167 @@
+{
+  "note": "Console setup manifest, not a claimed CLI deployment format. All collection _id indexes are unique by default.",
+  "indexes": [
+    {
+      "collection": "users",
+      "fields": {
+        "studentId": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "college": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "className": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "roleIds": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "college": 1,
+        "className": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "college": 1,
+        "roleIds": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "className": 1,
+        "roleIds": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "users",
+      "fields": {
+        "status": 1,
+        "college": 1,
+        "className": 1,
+        "roleIds": 1,
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "roles",
+      "fields": {
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "permissions",
+      "fields": {
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "audit_logs",
+      "fields": {
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "import_jobs",
+      "fields": {
+        "createdAt": -1,
+        "_id": 1
+      },
+      "unique": false
+    },
+    {
+      "collection": "audit_logs",
+      "fields": {
+        "actor": 1,
+        "createdAt": -1
+      }
+    },
+    {
+      "collection": "import_jobs",
+      "fields": {
+        "owner": 1,
+        "createdAt": -1
+      }
+    },
+    {
+      "collection": "sessions",
+      "fields": {
+        "uid": 1
+      }
+    },
+    {
+      "collection": "sessions",
+      "fields": {
+        "expiresAt": 1
+      }
+    },
+    {
+      "collection": "login_limits",
+      "fields": {
+        "until": 1
+      }
+    },
+    {
+      "collection": "privacy_jobs",
+      "fields": {
+        "status": 1,
+        "createdAt": 1
+      }
+    }
+  ]
+}

@@ -12,17 +12,37 @@ test('健康接口返回共享协议与有效时间', async () => {
   assert.ok(Number.isFinite(Date.parse(body.data.timestamp)))
 })
 test('未知路径和不支持的方法分别返回 404/405', async () => {
-  assert.equal((await main({ path: '/missing', httpMethod: 'GET' })).statusCode, 404)
-  assert.equal((await main({ path: HEALTH_PATH, httpMethod: 'POST' })).statusCode, 405)
+  assert.equal(
+    (await main({ path: '/missing', httpMethod: 'GET' })).statusCode,
+    404,
+  )
+  assert.equal(
+    (await main({ path: HEALTH_PATH, httpMethod: 'POST' })).statusCode,
+    405,
+  )
 })
 test('CORS 仅允许配置的站点，支持预检', async () => {
   const previous = process.env.ALLOWED_ORIGIN
   process.env.ALLOWED_ORIGIN = 'https://club.example.com'
   try {
-    const result = await main({ path: HEALTH_PATH, httpMethod: 'OPTIONS', headers: { origin: 'https://club.example.com' } })
+    const result = await main({
+      path: HEALTH_PATH,
+      httpMethod: 'OPTIONS',
+      headers: { origin: 'https://club.example.com' },
+    })
     assert.equal(result.statusCode, 204)
-    assert.equal(result.headers['Access-Control-Allow-Origin'], 'https://club.example.com')
-    const denied = await main({ path: HEALTH_PATH, httpMethod: 'GET', headers: { origin: 'https://other.example.com' } })
+    assert.equal(
+      result.headers['Access-Control-Allow-Origin'],
+      'https://club.example.com',
+    )
+    const denied = await main({
+      path: HEALTH_PATH,
+      httpMethod: 'GET',
+      headers: { origin: 'https://other.example.com' },
+    })
     assert.equal(denied.headers['Access-Control-Allow-Origin'], undefined)
-  } finally { if (previous === undefined) delete process.env.ALLOWED_ORIGIN; else process.env.ALLOWED_ORIGIN = previous }
+  } finally {
+    if (previous === undefined) delete process.env.ALLOWED_ORIGIN
+    else process.env.ALLOWED_ORIGIN = previous
+  }
 })

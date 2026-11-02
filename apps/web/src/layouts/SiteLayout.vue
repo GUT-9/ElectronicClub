@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandLogo from '../components/BrandLogo.vue'
+import { useAuthStore } from '../stores/auth'
+const auth = useAuthStore()
+onMounted(() => {
+  void auth.restore().catch(() => undefined)
+})
 import HealthStatus from '../components/HealthStatus.vue'
 const route = useRoute()
 const menuOpen = ref(false)
@@ -63,8 +68,9 @@ watch(
               : undefined
           "
           >{{ link.label }}</RouterLink
-        ><RouterLink to="/login" class="nav-login"
-          >登录 <span aria-hidden="true">↗</span></RouterLink
+        ><RouterLink :to="auth.member ? '/account' : '/login'" class="nav-login"
+          >{{ auth.member ? '用户中心' : '登录' }}
+          <span aria-hidden="true">↗</span></RouterLink
         >
       </nav>
     </div>

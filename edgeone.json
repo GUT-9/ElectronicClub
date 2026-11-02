@@ -4,14 +4,53 @@
   "outputDirectory": "apps/web/dist",
   "nodeVersion": "22",
   "rewrites": [
-    { "source": "/about", "destination": "/index.html" },
-    { "source": "/news", "destination": "/index.html" },
-    { "source": "/news/*", "destination": "/index.html" },
-    { "source": "/activities", "destination": "/index.html" },
-    { "source": "/activities/*", "destination": "/index.html" },
-    { "source": "/community", "destination": "/index.html" },
-    { "source": "/community/*", "destination": "/index.html" },
-    { "source": "/login", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/index.html" }
+    {
+      "source": "/about",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/news",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/news/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/activities",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/activities/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/community",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/community/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/account",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/change-password",
+      "destination": "/index.html"
+    }
   ]
 }

@@ -6,9 +6,16 @@
   "scripts": {
     "dev": "node --import tsx --watch src/local.ts",
     "typecheck": "tsc --noEmit",
-    "build": "tsc"
+    "build": "tsc && node ../../scripts/build-functions.mjs",
+    "bootstrap": "node --import tsx src/bootstrap.ts",
+    "privacy": "node --import tsx src/maintenance.ts"
   },
   "dependencies": {
-    "@electronic-club/shared": "0.1.0"
+    "@cloudbase/database": "1.4.3",
+    "@cloudbase/node-sdk": "3.18.7",
+    "@electronic-club/shared": "0.1.0",
+    "exceljs": "4.4.0",
+    "yauzl": "3.2.0",
+    "zod": "4.6.7"
   }
 }

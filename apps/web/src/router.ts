@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import SiteLayout from './layouts/SiteLayout.vue'
+import { useAuthStore } from './stores/auth'
 export const router = createRouter({
   history: createWebHistory(),
   scrollBehavior(to, from, saved) {
@@ -57,6 +58,16 @@ export const router = createRouter({
           meta: { title: '帖子详情' },
         },
         {
+          path: 'account',
+          component: () => import('./views/AccountView.vue'),
+          meta: { title: '用户中心', auth: true },
+        },
+        {
+          path: 'change-password',
+          component: () => import('./views/PasswordView.vue'),
+          meta: { title: '修改密码', auth: true },
+        },
+        {
           path: 'login',
           component: () => import('./views/LoginView.vue'),
           meta: { title: '登录' },
@@ -70,11 +81,83 @@ export const router = createRouter({
     },
     {
       path: '/admin',
-      component: () => import('./views/AdminView.vue'),
-      meta: { title: '管理后台 · 布局预览' },
+      component: () => import('./layouts/AdminLayout.vue'),
+      meta: { auth: true },
+      children: [
+        {
+          path: '',
+          component: () => import('./views/AdminView.vue'),
+          meta: { title: '管理工作区', admin: true },
+        },
+        {
+          path: 'members',
+          component: () => import('./views/MembersView.vue'),
+          meta: { title: '成员列表', permission: 'members.read' },
+        },
+        {
+          path: 'members/new',
+          component: () => import('./views/MemberEditView.vue'),
+          meta: { title: '创建成员', permission: 'members.create' },
+        },
+        {
+          path: 'members/:id',
+          component: () => import('./views/MemberEditView.vue'),
+          meta: { title: '成员详情', permission: 'members.read' },
+        },
+        {
+          path: 'imports',
+          component: () => import('./views/ImportView.vue'),
+          meta: { title: 'Excel导入', permission: 'members.import' },
+        },
+        {
+          path: 'roles',
+          component: () => import('./views/RolesView.vue'),
+          meta: { title: '角色管理', permission: 'roles.read' },
+        },
+        {
+          path: 'permissions',
+          component: () => import('./views/RolesView.vue'),
+          meta: { title: '权限配置', permission: 'roles.read' },
+        },
+        {
+          path: 'audit',
+          component: () => import('./views/AuditView.vue'),
+          meta: { title: '操作审计', permission: 'audit.read' },
+        },
+      ],
     },
   ],
 })
 router.afterEach((to) => {
   document.title = `${String(to.meta.title ?? '首页')} · 电子俱乐部`
+})
+
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  if (to.meta.auth || to.path === '/login') {
+    try {
+      await auth.restore(true)
+    } catch {
+      if (to.meta.auth) return { path: '/login', query: { next: to.fullPath } }
+    }
+    if (to.meta.auth && !auth.member)
+      return { path: '/login', query: { next: to.fullPath } }
+    if (auth.member?.mustChangePassword && to.path !== '/change-password')
+      return '/change-password'
+    if (to.path === '/login' && auth.member) return '/account'
+    if (to.meta.permission && !auth.can(String(to.meta.permission)))
+      return '/account'
+    if (
+      to.meta.admin &&
+      ![
+        'members.read',
+        'members.create',
+        'members.import',
+        'roles.read',
+        'roles.assign',
+        'audit.read',
+      ].some(auth.can)
+    )
+      return '/account'
+  }
 })
