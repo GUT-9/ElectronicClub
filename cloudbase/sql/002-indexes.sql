@@ -1,0 +1,13 @@
+BEGIN;
+CREATE INDEX IF NOT EXISTS users_status_created ON electronicclub.users((data->>'status'),(data->>'createdAt') DESC,id);
+CREATE INDEX IF NOT EXISTS users_college ON electronicclub.users((data->>'college'));
+CREATE INDEX IF NOT EXISTS users_class ON electronicclub.users((data->>'className'));
+CREATE INDEX IF NOT EXISTS users_roles ON electronicclub.users USING gin((data->'roleIds'));
+CREATE INDEX IF NOT EXISTS user_roles_role ON electronicclub.user_roles(role_id);
+CREATE INDEX IF NOT EXISTS sessions_user ON electronicclub.sessions(user_id);
+CREATE INDEX IF NOT EXISTS sessions_expiry ON electronicclub.sessions(((data->>'expiresAt')::bigint));
+CREATE INDEX IF NOT EXISTS student_ids_user ON electronicclub.student_ids(user_id);
+CREATE INDEX IF NOT EXISTS privacy_user ON electronicclub.privacy_jobs(user_id);
+CREATE INDEX IF NOT EXISTS audit_actor ON electronicclub.audit_logs((data->>'actor'),(data->>'createdAt') DESC);
+CREATE INDEX IF NOT EXISTS import_owner ON electronicclub.import_jobs((data->>'owner'),(data->>'createdAt') DESC);
+COMMIT;

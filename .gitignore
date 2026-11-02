@@ -9,3 +9,5 @@ coverage/
 .cloudbase/
 
 apps/functions/deploy/
+
+artifacts/

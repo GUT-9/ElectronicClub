@@ -17,12 +17,15 @@
     "lint": "eslint .",
     "build": "npm run build -w @electronic-club/shared && npm run build -w @electronic-club/functions && npm run build -w @electronic-club/web",
     "test": "node --import tsx --test tests/*.test.ts",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "package:functions": "npm run build -w @electronic-club/functions && node scripts/package-functions.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@types/node": "^22.19.0",
+    "@types/pg": "^8.23.1",
     "@types/yauzl": "^2.10.3",
+    "archiver": "7.0.1",
     "esbuild": "^0.25.12",
     "eslint": "^9.39.0",
     "eslint-plugin-vue": "^10.5.1",
@@ -30,8 +33,5 @@
     "tsx": "^4.20.6",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.0"
-  },
-  "overrides": {
-    "axios": "0.34.0"
   }
 }

@@ -1,5 +1,5 @@
 // Private privacy/retention CLI; never exported by the HTTP entry point.
-import { CloudStore } from './members/cloud-store'
+import { PgStore as CloudStore } from './members/pg-store'
 import { digest, studentIdKey } from './members/crypto'
 import type { ImportJob } from '@electronic-club/shared'
 async function main() {

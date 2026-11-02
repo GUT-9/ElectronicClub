@@ -1,6 +1,6 @@
 import { MemberService } from './members/service'
-import { CloudStore } from './members/cloud-store'
+import { PgStore } from './members/pg-store'
 let service: MemberService | undefined
 export function getService() {
-  return (service ??= new MemberService(new CloudStore()))
+  return (service ??= new MemberService(new PgStore()))
 }

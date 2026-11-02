@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+import { DatabaseFailure } from './members/pg-store'
 import { ZodError } from 'zod'
 import { ApiError } from './members/model'
 import type { MemberService } from './members/service'
@@ -21,7 +23,9 @@ export interface HttpResult {
 }
 export function createHandler(resolveService: () => MemberService) {
   return async (event: HttpEvent): Promise<HttpResult> => {
+    const requestId = randomUUID()
     const headers: Record<string, string> = {
+      'X-Request-ID': requestId,
       'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store',
       Vary: 'Origin',
@@ -44,7 +48,10 @@ export function createHandler(resolveService: () => MemberService) {
       headers,
       body: JSON.stringify(body),
     })
-    const path = (event.path ?? '').split('?')[0]!
+    const rawPath = (event.path ?? '').split('?')[0]!
+    const path = rawPath.startsWith('/api/')
+      ? rawPath
+      : '/api' + (rawPath.startsWith('/') ? rawPath : '/' + rawPath)
     const method = event.httpMethod ?? 'GET'
     if (method === 'OPTIONS') return { statusCode: 204, headers, body: '' }
     if (path === '/api/health') {
@@ -108,6 +115,8 @@ export function createHandler(resolveService: () => MemberService) {
           .map((x) => x.trim())
           .find((x) => x.startsWith(`${cookieName}=`))
           ?.slice(cookieName.length + 1) ?? ''
+      if (!token && !(path === '/api/auth/login' && method === 'POST'))
+        throw new ApiError(401, 'UNAUTHENTICATED', '请先登录')
       const service = resolveService()
       if (path === '/api/imports/template' && method === 'GET') {
         await service.authorize(token, 'members.import')
@@ -260,6 +269,17 @@ export function createHandler(resolveService: () => MemberService) {
               .join('；'),
           },
         })
+      console.error(
+        JSON.stringify({
+          requestId,
+          category: error instanceof DatabaseFailure ? 'database' : 'internal',
+          stage: error instanceof DatabaseFailure ? error.stage : 'request',
+          code:
+            error instanceof DatabaseFailure
+              ? error.safeCode
+              : 'INTERNAL_FAILURE',
+        }),
+      )
       // Never log request bodies, cookies, passwords or full SDK errors.
       return respond(503, {
         success: false,

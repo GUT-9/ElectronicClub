@@ -1,23 +1,27 @@
 import { build } from 'esbuild'
-import { mkdir, writeFile, readFile, copyFile } from 'node:fs/promises'
+import { mkdir, writeFile, readFile, copyFile, cp } from 'node:fs/promises'
+const dependencies = {
+  pg: '8.16.3',
+  exceljs: '4.4.0',
+  yauzl: '3.2.0',
+  zod: '4.6.7',
+}
 await mkdir('deploy', { recursive: true })
-await build({
-  entryPoints: ['src/index.ts'],
-  outfile: 'deploy/index.js',
-  platform: 'node',
-  target: 'node22',
-  bundle: true,
-  format: 'cjs',
-  // Bundle shared workspace runtime helpers; only real cloud dependencies stay external.
-  external: [
-    '@cloudbase/node-sdk',
-    '@cloudbase/database',
-    'exceljs',
-    'yauzl',
-    'zod',
-  ],
-})
-// Install external runtime dependencies in cloud; shared workspace code is bundled above.
+for (const [name, source] of Object.entries({
+  index: 'index',
+  bootstrap: 'bootstrap',
+  diagnose: 'diagnose',
+  maintenance: 'maintenance',
+}))
+  await build({
+    entryPoints: [`src/${source}.ts`],
+    outfile: `deploy/${name}.js`,
+    platform: 'node',
+    target: 'node18',
+    bundle: true,
+    format: 'cjs',
+    external: Object.keys(dependencies),
+  })
 await writeFile(
   'deploy/package.json',
   JSON.stringify(
@@ -25,40 +29,25 @@ await writeFile(
       name: 'electronic-club-api',
       private: true,
       main: 'index.js',
-      dependencies: {
-        '@cloudbase/node-sdk': '3.18.7',
-        exceljs: '4.4.0',
-        yauzl: '3.2.0',
-        zod: '4.6.7',
-        '@cloudbase/database': '1.4.3',
-      },
-      overrides: { axios: '0.34.0' },
+      engines: { node: '>=18.15.0' },
+      dependencies,
     },
     null,
     2,
   ) + '\n',
 )
-
-const runtimeLock = JSON.parse(
+const lock = JSON.parse(
   await readFile('../../cloudbase/runtime-package-lock.json', 'utf8'),
 )
-const runtimeManifest = JSON.parse(
-  await readFile('deploy/package.json', 'utf8'),
-)
-if (
-  JSON.stringify(runtimeLock.packages[''].dependencies) !==
-  JSON.stringify(runtimeManifest.dependencies)
-) {
-  const sort = (value) => JSON.stringify(Object.entries(value).sort())
-  if (
-    sort(runtimeLock.packages[''].dependencies) !==
-    sort(runtimeManifest.dependencies)
-  )
-    throw new Error(
-      'Refresh cloudbase/runtime-package-lock.json for updated runtime dependencies',
-    )
-}
+const sort = (x) => JSON.stringify(Object.entries(x).sort())
+if (sort(lock.packages[''].dependencies) !== sort(dependencies))
+  throw new Error('Refresh runtime package lock')
 await copyFile(
   '../../cloudbase/runtime-package-lock.json',
   'deploy/package-lock.json',
+)
+await cp('../../cloudbase/sql', 'deploy/sql', { recursive: true })
+await copyFile(
+  '../../cloudbase/backend.env.example',
+  'deploy/backend.env.example',
 )
