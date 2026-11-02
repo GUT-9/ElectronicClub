@@ -1,4 +1,4 @@
-> **凭据说明更正：** `CLOUDBASE_APIKEY` 是本项目自定义的环境变量名，不是CloudBase控制台必然已有的配置。虽然官方SDK有accessKey认证分支，但未核实本环境可获得可用Key及SQL角色映射，因此这条通道尚未具备目标环境部署验证条件。不要自行编造Key，也不要用管理员密码代替。网页健康检查与此Key无关。
+> **最新修复：** 默认复用SCF平台注入的临时执行身份，不再强制填写CLOUDBASE_APIKEY。实现依据为官方node-sdk 3.18.7的prepareCredentials、auth.getClientCredential和签名请求器。仍需验证执行角色IAM权限、令牌对应的SQL角色授权、RPC安装及管理员初始化；本地测试不能证明腾讯云已部署成功。
 
 # 用环境 ID 访问 CloudBase PostgreSQL：HTTPS 运行通道
 
@@ -12,7 +12,7 @@
 
 参考：[PostgreSQL 连接文档](https://docs.cloudbase.net/database/postgresql/connecting-to-postgresql)、[初始化](https://docs.cloudbase.net/database/postgresql/initialization)。文档站点在任务网络中被代理拒绝，依据为上述官方 npm 发布源码；这能证明协议实现存在，**不能证明当前体验套餐允许创建数据库角色、私有 Key 能映射特定 SQL 角色、RPC 已开放或本环境已授予权限**。
 
-环境 ID 负责定位，私有服务端凭据负责认证。单有环境 ID 无法安全登录数据库。不要尝试把 `postgres-...` 实例 ID 当成密码、连接 URL 或可匿名使用的访问令牌。
+环境 ID 负责定位，云函数执行身份负责认证；显式私有API Key只是可选通道。单有环境 ID 无法安全登录数据库。不要尝试把 `postgres-...` 实例 ID 当成密码、连接 URL 或可匿名使用的访问令牌。
 
 ## 最短安装顺序
 
@@ -20,7 +20,7 @@
 
 1. 保留已有数据库、函数和 `/api` 网关。先执行 `cloudbase/sql/editor-capability-check.sql` 检查已有表；不要删除供应商 schema。
 2. 经授权的 SQL Editor 执行完整 **`cloudbase/sql/editor-https-install.sql`**。这是001、002、创建 NOLOGIN 受限角色、003授权、004 RPC 的完整顺序合集。不要再另外重复执行所有独立文件。可重复执行，不删除已有用户；不兼容的旧表会报错，应停止检查，不能强行覆盖。不同部分独立提交，部分失败后检查并修复再重试，不能当成整份已成功。
-3. 取得**仅供服务端使用**的 CloudBase API Key，并由提供方明确确认其实际 SQL 角色映射。如果该角色不是 electronicclub_api，核实该角色不与浏览器/普通用户共用后，按 `005-https-role-binding.sql` 替换占位符并授权。默认文件会拒绝执行；禁止猜测角色名，禁止授予 anon/authenticated/PUBLIC。
+3. 默认使用SCF执行身份，无需寻找API Key。确认平台为函数注入TENCENTCLOUD_SECRETID/SECRETKEY及可选SESSIONTOKEN临时凭据，执行角色有目标环境访问权限；不要人工粘贴账号长期密钥。通过官方`/auth/v1/token/clientCredential`签名换取Bearer令牌，确认该服务端身份实际SQL角色映射。如果该角色不是 electronicclub_api，核实该角色不与浏览器/普通用户共用后，按 `005-https-role-binding.sql` 替换占位符并授权。默认文件会拒绝执行；禁止猜测角色名，禁止授予 anon/authenticated/PUBLIC。
 4. 若套餐/Editor禁止 CREATE ROLE、GRANT、自定义 RPC，或没有官方支持的私有 Key/SQL角色授权途径，这条通道仍被阻断，需要提供方确认。**不能改成给匿名角色开放低层数据函数。** 管理 API 的迁移权限不等于运行时 Key 的数据权限。
 
 `001/002/004` 也纳入 `scripts/cloudbase-sql.ts` 管理迁移计划；003和受限角色创建需先由有权限的DBA完成。已有001/002迁移内容和版本没有改变；新增004使用新版本，避免修改历史校验和。首次安装直接使用上面的完整Editor文件更直观。
@@ -34,12 +34,11 @@
 ```text
 DB_DRIVER=cloudbase-http
 CLOUDBASE_ENV_ID=natural-tuna-d6gptlw1w76fa8a63
-CLOUDBASE_APIKEY=<私有服务端Key，不是环境ID或前端Key>
 ALLOWED_ORIGIN=https://eclub.gut9.cn
 COOKIE_SECURE=true
 ```
 
-HTTPS 模式**不需要 DATABASE_URL、PG_CA_CERT、PG端口、外网开关或TCP连接池配置**。此处使用平台 HTTPS TLS；不会关闭证书验证。不要把初始化密码放进函数持久环境变量。
+默认不需要手填CLOUDBASE_APIKEY；临时凭据由平台注入，不显示在用户自定义环境变量列表里不代表必然缺失。需要从实际日志确认。HTTPS 模式**不需要 DATABASE_URL、PG_CA_CERT、PG端口、外网开关或TCP连接池配置**。此处使用平台 HTTPS TLS；不会关闭证书验证。不要把初始化密码放进函数持久环境变量。
 
 ### C. 受保护独立终端：检查与一次性初始化
 
@@ -73,5 +72,21 @@ bootstrap 支持字母学号、大写规范化、前导零和 nickname；密码�
 
 - `npm ci`、`npm run check`通过：29个测试全部执行，包含本地真实PostgreSQL16的TCP及HTTP RPC集成测试；不是内存替代。
 - 完整部署目录另在真正Node.js18.15.0下验证 `index.main` 健康/匿名401/登录/Set-Cookie/会话恢复/超级管理员权限，以及 `diagnose.js` 和重复bootstrap安全退出。该验收使用本地HTTP桥接到真实PG，不是腾讯云部署验收。
-- `npm audit`：完整依赖树22项moderate、0 high/critical；`--omit=dev`为10项moderate、0 high/critical，主要来自Excel/ZIP链。未新增运行依赖。现有XLSX限制、解压大小与条目限制、拒绝公式和服务端鉴权仍保留；不把中风险依赖描述成全部修复。
+- `npm audit`：完整依赖树22项moderate、0 high/critical；`--omit=dev`为10项moderate、0 high/critical，主要来自Excel/ZIP链。初版未新增运行依赖；本轮身份修复新增官方签名库2.2.2，完整审计仍为22项moderate、无high/critical。现有XLSX限制、解压大小与条目限制、拒绝公式和服务端鉴权仍保留；不把中风险依赖描述成全部修复。
 - 未执行任何CloudBase生产SQL、正式管理员创建、腾讯云配置或DNS修改。
+
+
+## 登录503的分阶段定位
+
+只复制安全日志中的requestId/stage/code，不发送密码、Token、Cookie、SecretId/SecretKey。
+
+- runtime_identity / CLOUDBASE_IDENTITY_UNAVAILABLE：没有可用的平台执行身份或显式服务端Key。检查云函数执行角色/临时凭据注入；不要求自行编造Key。
+- identity_exchange / CLOUDBASE_IDENTITY_REJECTED：平台身份换令牌被拒绝，核查执行角色、目标环境权限；没有弱化SQL授权。
+- identity_exchange / CLOUDBASE_IDENTITY_UNREACHABLE：换令牌服务不可达。
+- http_rpc / RDB_HTTP_PERMISSION_DENIED：已到数据接口，但数据库角色或RPC执行权限不足。不能给匿名角色授权来绕过。
+- http_rpc / RDB_RPC_NOT_INSTALLED、RDB_SCHEMA_NOT_INSTALLED：SQL安装缺失。
+- 接口NOT_INITIALIZED：数据库可访问，但还没有完成一次性管理员初始化。**只设置BOOTSTRAP_PASSWORD不会自动创建账号**；仍需受保护bootstrap或私有离线SQL。密码只写哈希。
+
+签名库采用官方@cloudbase/signature-nodejs 2.2.2，运行依赖已纳入独立锁文件和ZIP。不引入整套SDK，不记录原始身份错误或令牌。并发请求共享令牌交换，按有效期提前刷新，平台临时凭据轮换时重新交换；SQL权限边界保持不变。
+
+本轮身份修复验证：npm ci与npm run check通过，31项测试全部执行；Node18.15完整部署目录通过签名换令牌（本地测试网关）、真实本地PG登录/Cookie/RBAC、诊断及重复初始化。临时凭据与令牌均为测试值，不连接腾讯云真实身份服务。实际平台凭据注入与SQL角色映射仍须云端验收。

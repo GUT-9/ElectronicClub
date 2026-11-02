@@ -1,3 +1,5 @@
+> **登录503修复：默认复用云函数平台临时执行身份，不再强制填写CLOUDBASE_APIKEY。需上传新的部署ZIP；仅更新GitHub不会更新腾讯云函数。SQL权限与首次初始化仍需真实验证。**
+
 > **最新运行通道：[环境ID + 私有Key的PostgreSQL HTTPS部署](docs/cloudbase-https-runtime.md)**。默认不再需要TCP端点；仍需安装SQL RPC并验证服务端数据库角色。未执行腾讯云部署。
 
 > 最新一次性部署操作分工、官方管理API工具和离线初始化见 [控制台操作手册](docs/cloudbase-console-runbook.md)。

@@ -11,6 +11,7 @@
     "privacy": "node --import tsx src/maintenance.ts"
   },
   "dependencies": {
+    "@cloudbase/signature-nodejs": "2.2.2",
     "@electronic-club/shared": "0.1.0",
     "exceljs": "4.4.0",
     "pg": "8.16.3",

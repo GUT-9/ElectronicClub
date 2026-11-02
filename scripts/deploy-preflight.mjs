@@ -3,7 +3,12 @@ const http = process.env.DB_DRIVER !== 'postgres-tcp'
 const checks = http
   ? {
       environmentPresent: !!process.env.CLOUDBASE_ENV_ID,
-      privateServerKeyPresent: !!process.env.CLOUDBASE_APIKEY,
+      serverIdentityPresent:
+        !!process.env.CLOUDBASE_APIKEY ||
+        !!(
+          process.env.TENCENTCLOUD_SECRETID &&
+          process.env.TENCENTCLOUD_SECRETKEY
+        ),
       originPresent: !!process.env.ALLOWED_ORIGIN,
       secureCookie: process.env.COOKIE_SECURE !== 'false',
     }
@@ -29,7 +34,7 @@ console.log(
     {
       checks,
       notes: [
-        'HTTPS mode uses the environment ID and a private server key authorized for ec_* RPCs.',
+        'HTTPS mode uses the environment ID and the SCF execution identity (or optional private API key). SQL RPC role permissions are still required.',
         'In TCP mode, endpoint and port must come from the provider, not the environment ID.',
         'Run diagnose.js with the SAME DB_DRIVER and credentials as the function.',
         'A successful management SQL API call does not prove PostgreSQL TCP access.',

@@ -1,6 +1,7 @@
 import { build } from 'esbuild'
 import { mkdir, writeFile, readFile, copyFile, cp } from 'node:fs/promises'
 const dependencies = {
+  '@cloudbase/signature-nodejs': '2.2.2',
   pg: '8.16.3',
   exceljs: '4.4.0',
   yauzl: '3.2.0',

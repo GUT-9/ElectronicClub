@@ -1,5 +1,6 @@
 import type { Store, Transaction, ListOptions } from './store'
 import { DatabaseFailure } from './pg-store'
+import { cloudbaseAuthorization } from './cloudbase-auth'
 
 export type Rpc = (
   name: string,
@@ -9,18 +10,19 @@ export type Rpc = (
 // Same PostgREST endpoint and Bearer authentication used by the official Node SDK's rdb().
 // The key must belong to a private, restricted server role; never use a browser/anon key.
 export function cloudbaseRpc(): Rpc {
-  const env = process.env.CLOUDBASE_ENV_ID,
-    key = process.env.CLOUDBASE_APIKEY
-  if (!env || !/^[a-zA-Z0-9-]+$/.test(env) || !key)
-    throw new DatabaseFailure('configuration', 'CLOUDBASE_HTTP_AUTH_REQUIRED')
+  const env = process.env.CLOUDBASE_ENV_ID
+  if (!env || !/^[a-zA-Z0-9-]+$/.test(env))
+    throw new DatabaseFailure('configuration', 'CLOUDBASE_ENV_REQUIRED')
+  const auth = cloudbaseAuthorization(env)
   const base = `https://${env}.api.tcloudbasegateway.com/v1/rdb/rest/rpc/`
   return async (name, args) => {
+    const authorization = await auth.header()
     let response: Response
     try {
       response = await fetch(base + name, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${key}`,
+          Authorization: authorization,
           'Content-Type': 'application/json',
           'Accept-Profile': 'public',
           'Content-Profile': 'public',
@@ -32,6 +34,7 @@ export function cloudbaseRpc(): Rpc {
       throw new DatabaseFailure('http_connect', 'RDB_HTTP_UNREACHABLE')
     }
     if (!response.ok) {
+      if (response.status === 401) auth.invalidate()
       let code = ''
       try {
         code = (await response.json()).code ?? ''
