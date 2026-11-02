@@ -7,9 +7,16 @@ export const useHealthStore = defineStore('health', () => {
   const healthy = ref(false)
   async function check() {
     loading.value = true
-    try { await getHealth(); healthy.value = true; status.value = '后端连接正常' }
-    catch { healthy.value = false; status.value = '连接失败，请检查后端服务与 API 地址' }
-    finally { loading.value = false }
+    try {
+      await getHealth()
+      healthy.value = true
+      status.value = '后端连接正常'
+    } catch {
+      healthy.value = false
+      status.value = '连接失败，请检查后端服务与 API 地址'
+    } finally {
+      loading.value = false
+    }
   }
   return { loading, status, healthy, check }
 })

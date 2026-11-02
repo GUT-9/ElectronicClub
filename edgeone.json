@@ -1,0 +1,17 @@
+{
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build -w @electronic-club/web",
+  "outputDirectory": "apps/web/dist",
+  "nodeVersion": "22",
+  "rewrites": [
+    { "source": "/about", "destination": "/index.html" },
+    { "source": "/news", "destination": "/index.html" },
+    { "source": "/news/*", "destination": "/index.html" },
+    { "source": "/activities", "destination": "/index.html" },
+    { "source": "/activities/*", "destination": "/index.html" },
+    { "source": "/community", "destination": "/index.html" },
+    { "source": "/community/*", "destination": "/index.html" },
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" }
+  ]
+}
