@@ -1,0 +1,14 @@
+{
+  "name": "@electronic-club/functions",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "node --import tsx --watch src/local.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@electronic-club/shared": "0.1.0"
+  }
+}

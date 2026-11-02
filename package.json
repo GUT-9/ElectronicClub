@@ -1,0 +1,32 @@
+{
+  "name": "electronic-club",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=10"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @electronic-club/web",
+    "dev:api": "npm run dev -w @electronic-club/functions",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc --noEmit -p tsconfig.json",
+    "lint": "eslint .",
+    "build": "npm run build -w @electronic-club/shared && npm run build -w @electronic-club/functions && npm run build -w @electronic-club/web",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "npm run lint && npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "eslint": "^9.39.0",
+    "eslint-plugin-vue": "^10.5.1",
+    "globals": "^16.5.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "tsx": "^4.20.6",
+    "@types/node": "^22.19.0"
+  }
+}
