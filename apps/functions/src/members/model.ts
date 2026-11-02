@@ -1,3 +1,8 @@
+import {
+  isValidStudentId,
+  normalizeStudentId,
+  STUDENT_ID_MESSAGE,
+} from '@electronic-club/shared'
 import { z } from 'zod'
 export class ApiError extends Error {
   constructor(
@@ -19,7 +24,8 @@ export function ensure(
 const text = z.string().trim().max(100)
 export const studentIdSchema = z
   .string()
-  .regex(/^\d{4,24}$/, '学号须为4–24位数字文本，保留前导零')
+  .refine(isValidStudentId, STUDENT_ID_MESSAGE)
+  .transform(normalizeStudentId)
 export const memberSchema = z
   .object({
     studentId: studentIdSchema,

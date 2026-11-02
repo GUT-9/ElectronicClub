@@ -21,7 +21,13 @@ import {
   listSchema,
   studentIdSchema,
 } from './model'
-import { digest, randomToken, hashPassword, verifyPassword } from './crypto'
+import {
+  digest,
+  studentIdKey,
+  randomToken,
+  hashPassword,
+  verifyPassword,
+} from './crypto'
 import { parseWorkbook } from './xlsx'
 interface Control {
   initialized: boolean
@@ -217,7 +223,7 @@ export class MemberService {
   ) {
     const data = memberSchema.parse(input)
     ensure(
-      !(await tx.get('student_ids', digest(data.studentId))),
+      !(await tx.get('student_ids', studentIdKey(data.studentId))),
       409,
       'STUDENT_ID_EXISTS',
       '学号已存在（包括软删除账号）',
@@ -238,7 +244,7 @@ export class MemberService {
     }
     await this.adjustRoles(tx, { ...user, roleIds: [] }, roleIds)
     await tx.set('users', uid, user)
-    await tx.set('student_ids', digest(data.studentId), { uid })
+    await tx.set('student_ids', studentIdKey(data.studentId), { uid })
     await tx.set('credentials', uid, { hash: await hashPassword(password) })
     await this.audit(tx, actor, 'members.create', uid, Object.keys(data))
     return user
@@ -346,7 +352,7 @@ export class MemberService {
       }
       const mapping = await tx.get<{ uid: string }>(
         'student_ids',
-        digest(body.studentId),
+        studentIdKey(body.studentId),
       )
       const user = mapping ? await tx.get<Member>('users', mapping.uid) : null
       const credential = user
@@ -405,7 +411,10 @@ export class MemberService {
           if (
             row.member &&
             !row.error &&
-            (await this.store.read('student_ids', digest(row.member.studentId)))
+            (await this.store.read(
+              'student_ids',
+              studentIdKey(row.member.studentId),
+            ))
           )
             row.error = '学号已存在（包括软删除账号）'
         }),
@@ -603,13 +612,13 @@ export class MemberService {
             fields = Object.keys(changes)
             if (changes.studentId && changes.studentId !== target.studentId) {
               ensure(
-                !(await tx.get('student_ids', digest(changes.studentId))),
+                !(await tx.get('student_ids', studentIdKey(changes.studentId))),
                 409,
                 'STUDENT_ID_EXISTS',
                 '学号已存在',
               )
-              await tx.remove('student_ids', digest(target.studentId))
-              await tx.set('student_ids', digest(changes.studentId), {
+              await tx.remove('student_ids', studentIdKey(target.studentId))
+              await tx.set('student_ids', studentIdKey(changes.studentId), {
                 uid: id,
               })
               next.version++
@@ -704,12 +713,12 @@ export class MemberService {
             await tx.set('privacy_jobs', id, {
               id,
               uid: id,
-              studentIdDigest: digest(target.studentId),
+              studentIdDigest: studentIdKey(target.studentId),
               status: 'pending',
               createdAt: this.now(),
             })
             await this.adjustRoles(tx, target, [])
-            await tx.remove('student_ids', digest(target.studentId))
+            await tx.remove('student_ids', studentIdKey(target.studentId))
             await tx.remove('credentials', id)
             next = {
               ...next,
@@ -880,7 +889,9 @@ export class MemberService {
           for (let i = job.offset; i < end; i++) {
             const row = job.rows[i]!
             if (!row.error && row.member) {
-              if (await tx.get('student_ids', digest(row.member.studentId)))
+              if (
+                await tx.get('student_ids', studentIdKey(row.member.studentId))
+              )
                 row.error = '学号已存在或被其他任务创建'
               else
                 row.uid = (

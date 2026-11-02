@@ -6,7 +6,7 @@
 
 本轮核查官方 npm 发布源码及类型：
 
-- `@cloudbase/js-sdk@3.10.4` 的 `core.d.ts` 提供 `auth.signInWithPassword({ username, password })`。用户名可承载数字字符串学号；原生用户名登录是存在的。
+- `@cloudbase/js-sdk@3.10.4` 的 `core.d.ts` 提供 `auth.signInWithPassword({ username, password })`。用户名可承载学号字符串；原生用户名登录是存在的。
 - `@cloudbase/manager-node@5.9.4` 的 `types/user/index.d.ts` / `lib/user/index.js` 提供 `user.createUser({ name, uid, password, ... })`，可逐个管理员创建，不需要虚构“批量创建”接口。新版实现明确校验密码 8–32 位、字母数字开头且至少三类字符；`123456` 不满足。旧 `createEndUser` 接口仍存在，但不能据此保证新版环境接受弱密码。
 - 官方依据：[Web v3 认证](https://docs.cloudbase.net/api-reference/webv3/authentication)、[管理 SDK](https://github.com/TencentCloudBase/cloudbase-manager-node)、[服务端 SDK](https://github.com/TencentCloudBase/node-sdk)。核查依据是下载的当前 SDK 源码，不等同于目标租户的线上 API 调用成功。
 
@@ -33,7 +33,7 @@
 | 集合 | 主键 / 内容 | 关键索引 |
 | --- | --- | --- |
 | users | UID，成员档案、账号状态、撤销版本 | status + createdAt + _id；学院/班级/roleIds筛选的组合索引 |
-| student_ids | SHA-256(studentId) → UID | `_id` 唯一；事务保证学号全局唯一，包括软删除成员 |
+| student_ids | SHA-256(normalizeStudentId(studentId)) → UID | `_id` 唯一；事务保证学号全局唯一，包括软删除成员 |
 | credentials | UID → scrypt哈希 | `_id` 唯一；仅服务端 |
 | sessions | SHA-256(token) → UID、版本、绝对与空闲失效时间 | UID、expiresAt，过期文档可定期清理 |
 | roles | 角色ID、名称、描述、permissionIds、引用人数 | createdAt + _id |
@@ -63,7 +63,7 @@ npm run bootstrap -w @electronic-club/functions -- --collections
 
 ### 安全创建首个超级管理员
 
-在受保护终端通过安全环境变量传入 `BOOTSTRAP_STUDENT_ID`、`BOOTSTRAP_NAME`、`BOOTSTRAP_PASSWORD`，密码由部署者自行生成，至少12位且包含字母数字；没有公开固定学号或默认管理员密码。不要将密码放入命令参数、脚本或提交文件；终端可用 `read -rs` 读取再 export。
+在受保护终端通过安全环境变量传入 `BOOTSTRAP_STUDENT_ID`、`BOOTSTRAP_NAME`、`BOOTSTRAP_PASSWORD`，可选 `BOOTSTRAP_NICKNAME` 设置昵称。学号支持字母数字并统一转为大写。密码由部署者自行生成，至少12位且包含字母数字；没有公开固定学号或默认管理员密码。不要将密码放入命令参数、脚本或提交文件；终端可用 `read -rs` 读取再 export。
 
 ```bash
 npm run bootstrap -w @electronic-club/functions -- --initialize
@@ -115,7 +115,7 @@ npm run bootstrap -w @electronic-club/functions -- --initialize
 
 ## Excel 行为
 
-仅接受 `.xlsx`；服务端检查 ZIP 容器，压缩文件≤2MB，解压声明总量≤20MB、条目≤2000；最多1000行/文件，较大名单分文件处理。表头严格匹配学号、姓名、性别、学院、专业、班级、年级；学号必须为数字文本（4–24位）。数字、科学计数和公式学号直接报错，绝不猜测恢复。模板学号列设置文本格式，数据库学号保持字符串。
+仅接受 `.xlsx`；服务端检查 ZIP 容器，压缩文件≤2MB，解压声明总量≤20MB、条目≤2000；最多1000行/文件，较大名单分文件处理。表头严格匹配学号、姓名、性别、学院、专业、班级、年级；学号必须为英文字母或数字文本（4–24字符），统一转换为大写，不允许空格或特殊字符。数字、科学计数和公式学号直接报错，绝不猜测恢复。模板学号列设置文本格式，数据库学号保持字符串。
 
 预览展示字段错误、文件内重复、已有学号；提交时在事务中再次检查唯一性。文件内容哈希确定任务ID，同一文件不会创建第二个任务；重复批次 offset 不会重复创建账号。失败事务不会推进进度。中断后输入任务ID可继续。错误行跳过并导出，格式错误的学号不写入“猜测值”；根据原始行号在源文件中修正。任务拥有者权限被撤销后不能继续导入。
 
@@ -163,3 +163,7 @@ EdgeOne 保持根目录构建、`npm ci`、前端构建命令与 `apps/web/dist`
 ## 本次验证记录
 
 最终 `npm run check`：19项测试通过，无跳过；类型、lint与生产构建通过。浏览器使用显式内存适配器走通创建成员、编辑角色、导入、强制改密、登录恢复和越权路由拦截，并检查1440/1920/375/430px。另在仓库外独立安装云函数部署依赖并执行打包健康入口通过。以上均不是腾讯云线上验证。
+
+## 学号规范化修复
+
+最新修复已通过27项自动化测试及生产构建。规则、数字账号兼容性、bootstrap昵称配置及不会覆盖原账号的迁移方案见 [student-id-migration.md](student-id-migration.md)。本次没有读取或迁移生产数据。

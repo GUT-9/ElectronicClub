@@ -1,6 +1,6 @@
 // Private privacy/retention CLI; never exported by the HTTP entry point.
 import { CloudStore } from './members/cloud-store'
-import { digest } from './members/crypto'
+import { digest, studentIdKey } from './members/crypto'
 import type { ImportJob } from '@electronic-club/shared'
 async function main() {
   const store = new CloudStore(),
@@ -25,7 +25,8 @@ async function main() {
           (row) =>
             row.uid === uid ||
             (row.member &&
-              digest(row.member.studentId) === privacy.studentIdDigest),
+              (studentIdKey(row.member.studentId) === privacy.studentIdDigest ||
+                digest(row.member.studentId) === privacy.studentIdDigest)),
         )
       )
         continue
@@ -40,7 +41,8 @@ async function main() {
           if (
             row.uid === uid ||
             (row.member &&
-              digest(row.member.studentId) === privacy.studentIdDigest)
+              (studentIdKey(row.member.studentId) === privacy.studentIdDigest ||
+                digest(row.member.studentId) === privacy.studentIdDigest))
           ) {
             delete row.member
             delete row.uid

@@ -1,3 +1,4 @@
+import { normalizeStudentId } from '@electronic-club/shared'
 import { randomBytes, scrypt, timingSafeEqual, createHash } from 'node:crypto'
 export const digest = (value: string) =>
   createHash('sha256').update(value).digest('hex')
@@ -28,3 +29,7 @@ export async function verifyPassword(password: string, hash: string) {
   const expected = Buffer.from(parts[2]!, 'hex')
   return key.length === expected.length && timingSafeEqual(key, expected)
 }
+
+/** Unique key and privacy identifier must always use the canonical student ID. */
+export const studentIdKey = (studentId: string) =>
+  digest(normalizeStudentId(studentId))

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
+import { STUDENT_ID_PATTERN, normalizeStudentId } from '@electronic-club/shared'
 import { useRoute, useRouter } from 'vue-router'
 import type { Member, Role } from '@electronic-club/shared'
 import { request, allRoles } from '../member-api'
@@ -62,7 +63,7 @@ async function act(fn: () => Promise<void>) {
 }
 async function save() {
   await act(async () => {
-    const payload = { ...form }
+    const payload = { ...form, studentId: normalizeStudentId(form.studentId) }
     if (creating.value && !payload.nickname) payload.nickname = payload.name
     const result = await request<Member>(
       creating.value ? '/members' : `/members/${member.value!.uid}`,
@@ -120,7 +121,17 @@ onMounted(() => act(load))
       }}<input
         v-model="form[key]"
         :required="key === 'studentId' || key === 'name'"
-        :maxlength="key === 'avatar' ? 500 : key === 'email' ? 200 : 100"
+        :pattern="key === 'studentId' ? STUDENT_ID_PATTERN : undefined"
+        :minlength="key === 'studentId' ? 4 : undefined"
+        :maxlength="
+          key === 'studentId'
+            ? 24
+            : key === 'avatar'
+              ? 500
+              : key === 'email'
+                ? 200
+                : 100
+        "
         :disabled="
           busy ||
           (!creating && !auth.can('members.edit')) ||

@@ -120,7 +120,7 @@ export async function parseWorkbook(buffer: Buffer): Promise<ImportRow[]> {
         invalid = true
         break
       }
-      values[key] = cell.text.trim()
+      values[key] = key === 'studentId' ? cell.text : cell.text.trim()
     }
     if (invalid) {
       rows.push({ line, error: '不支持公式、超链接或富文本单元格' })

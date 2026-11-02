@@ -19,3 +19,10 @@ export type {
   ImportJob,
   AuditLog,
 } from './members'
+
+export {
+  STUDENT_ID_PATTERN,
+  STUDENT_ID_MESSAGE,
+  isValidStudentId,
+  normalizeStudentId,
+} from './student-id'

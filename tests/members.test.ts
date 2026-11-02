@@ -616,3 +616,268 @@ test('partial updates retain untouched data and multi-batch imports reject stale
   assert.equal(last.data?.created, 21)
   assert.equal(last.data?.status, 'completed')
 })
+
+test('alphanumeric student IDs normalize to uppercase, preserve zeroes and reject invalid raw input', async () => {
+  const { normalizeStudentId, isValidStudentId } =
+    await import('../packages/shared/src/student-id')
+  for (const [input, expected] of [
+    ['00123456', '00123456'],
+    ['00AB1234', '00AB1234'],
+    ['00ab1234', '00AB1234'],
+    ['20301234a5678', '20301234A5678'],
+    ['Ab12', 'AB12'],
+    ['a'.repeat(24), 'A'.repeat(24)],
+  ])
+    assert.equal(normalizeStudentId(input), expected)
+  for (const input of [
+    'abc',
+    'a'.repeat(25),
+    '2025-1301',
+    ' abc123',
+    'abc123 ',
+    'abc 123',
+    'abc123\n',
+    'abc123\t',
+    'ＡＢ1234',
+    'ß1234',
+    'ab_1234',
+    'ab.1234',
+    '',
+    123456,
+    null,
+  ]) {
+    assert.equal(isValidStudentId(input), false)
+    assert.throws(() => normalizeStudentId(input))
+  }
+})
+
+test('case-insensitive create uses one normalized unique mapping and stores string IDs', async () => {
+  const { studentIdKey, digest } =
+    await import('../apps/functions/src/members/crypto')
+  const f = await fixture(),
+    user = await f.create('00ab1234')
+  assert.equal(user.studentId, '00AB1234')
+  assert.equal(typeof user.studentId, 'string')
+  assert.equal(
+    (
+      await f.call(
+        'POST',
+        '/api/members',
+        { studentId: '00Ab1234', name: '重复测试' },
+        f.cookie,
+      )
+    ).response.statusCode,
+    409,
+  )
+  assert.deepEqual(
+    await f.store.read('student_ids', studentIdKey('00aB1234')),
+    { uid: user.uid },
+  )
+  assert.equal(studentIdKey('00123456'), digest('00123456'))
+  assert.equal(studentIdKey('00ab1234'), studentIdKey('00AB1234'))
+  assert.equal(await f.store.read('student_ids', digest('00ab1234')), null)
+  for (const invalid of ['2025-1301', ' ab1234', 'ab1234 ']) {
+    assert.equal(
+      (
+        await f.call(
+          'POST',
+          '/api/members',
+          { studentId: invalid, name: '无效学号测试' },
+          f.cookie,
+        )
+      ).response.statusCode,
+      400,
+    )
+    assert.equal((await f.login(invalid, '123456')).response.statusCode, 400)
+  }
+})
+
+test('login accepts mixed-case alphanumeric IDs and shares failed-login limits across cases', async () => {
+  const f = await fixture(),
+    user = await f.create('00ab1234')
+  assert.equal(
+    (await f.login('00aB1234', '123456')).data?.member.studentId,
+    '00AB1234',
+  )
+  const cookie = await f.activate(user)
+  assert.equal(
+    (await f.login('00ab1234', memberPassword)).response.statusCode,
+    200,
+  )
+  assert.equal(
+    (await f.call<Identity>('GET', '/api/auth/me', {}, cookie)).data?.member
+      .uid,
+    user.uid,
+  )
+  for (let i = 0; i < 10; i++)
+    assert.equal(
+      (await f.login(i % 2 ? '00ab1234' : '00AB1234', 'wrong')).response
+        .statusCode,
+      401,
+    )
+  assert.equal(
+    (await f.login('00Ab1234', memberPassword)).response.statusCode,
+    429,
+  )
+})
+
+test('editing student IDs normalizes, prevents case collisions and preserves password-reset UID lookup', async () => {
+  const { studentIdKey } = await import('../apps/functions/src/members/crypto')
+  const f = await fixture()
+  await f.create('00ab1234')
+  const user = await f.create('00123456')
+  assert.equal(
+    (
+      await f.call(
+        'PATCH',
+        `/api/members/${user.uid}`,
+        { studentId: '00aB1234' },
+        f.cookie,
+      )
+    ).response.statusCode,
+    409,
+  )
+  const edited = await f.call<Member>(
+    'PATCH',
+    `/api/members/${user.uid}`,
+    { studentId: '00xy5678' },
+    f.cookie,
+  )
+  assert.equal(edited.data?.studentId, '00XY5678')
+  assert.equal(
+    await f.store.read('student_ids', studentIdKey('00123456')),
+    null,
+  )
+  assert.deepEqual(
+    await f.store.read('student_ids', studentIdKey('00xy5678')),
+    { uid: user.uid },
+  )
+  const cookie = await f.activate(edited.data!)
+  await f.call('POST', `/api/members/${user.uid}/password`, {}, f.cookie)
+  assert.equal(
+    (await f.call('GET', '/api/auth/me', {}, cookie)).response.statusCode,
+    401,
+  )
+  assert.equal((await f.login('00xY5678', '123456')).data?.member.uid, user.uid)
+})
+
+test('XLSX accepts alphanumeric text, rejects case duplicates and whitespace, retains leading zeroes', async () => {
+  const rows = await parseWorkbook(
+    await workbook([
+      ['00ab1234', '测试甲'],
+      ['00AB1234', '重复测试'],
+      ['00123456', '测试乙'],
+      ['ab 1234', '含空格'],
+      [' abc123', '前空格'],
+      ['abc123 ', '后空格'],
+      [123456, '数字单元格'],
+    ]),
+  )
+  assert.equal(rows[0]?.member?.studentId, '00AB1234')
+  assert.match(rows[1]?.error ?? '', /重复/)
+  assert.equal(rows[2]?.member?.studentId, '00123456')
+  for (const row of rows.slice(3)) assert.ok(row.error)
+})
+
+test('import preview, processing, template and error exports use normalized string IDs', async () => {
+  const f = await fixture()
+  await f.create('00ab1234')
+  const file = (
+    await workbook([
+      ['00ab1234', '已有账号'],
+      ['00cd5678', '新增账号'],
+      ['00CD5678', '文件重复'],
+    ])
+  ).toString('base64')
+  const preview = await f.call<ImportJob>(
+    'POST',
+    '/api/imports/preview',
+    { file },
+    f.cookie,
+  )
+  assert.equal(preview.data?.rows[0]?.member?.studentId, '00AB1234')
+  assert.match(preview.data?.rows[0]?.error ?? '', /已存在/)
+  assert.match(preview.data?.rows[2]?.error ?? '', /重复/)
+  const id = preview.data!.id
+  assert.equal(
+    (
+      await f.call<ImportJob>(
+        'POST',
+        `/api/imports/${id}/process`,
+        { offset: 0 },
+        f.cookie,
+      )
+    ).data?.created,
+    1,
+  )
+  assert.equal(
+    (await f.login('00cd5678', '123456')).data?.member.studentId,
+    '00CD5678',
+  )
+  const template = await f.call('GET', '/api/imports/template', {}, f.cookie)
+  const book = new ExcelJS.Workbook()
+  await book.xlsx.load(
+    Buffer.from(template.response.body, 'base64') as unknown as ExcelJS.Buffer,
+  )
+  assert.equal(book.worksheets[0]?.getColumn(1).numFmt, '@')
+  const errors = await f.call(
+    'GET',
+    `/api/imports/${id}/errors.xlsx`,
+    {},
+    f.cookie,
+  )
+  const report = new ExcelJS.Workbook()
+  await report.xlsx.load(
+    Buffer.from(errors.response.body, 'base64') as unknown as ExcelJS.Buffer,
+  )
+  assert.equal(report.worksheets[0]?.getRow(2).getCell(2).value, '00AB1234')
+  const exported = await f.call('GET', '/api/members/export.xlsx', {}, f.cookie)
+  const members = new ExcelJS.Workbook()
+  await members.xlsx.load(
+    Buffer.from(exported.response.body, 'base64') as unknown as ExcelJS.Buffer,
+  )
+  const ids: string[] = []
+  members.worksheets[0]!.eachRow((row, index) => {
+    if (index > 1) ids.push(String(row.getCell(1).value))
+  })
+  assert.ok(ids.includes('00CD5678'))
+})
+
+test('bootstrap accepts letter IDs and an explicitly supplied nickname without fixed identity defaults', async () => {
+  const { studentIdKey } = await import('../apps/functions/src/members/crypto')
+  const store = new MemoryStore(),
+    service = new MemberService(store)
+  const user = await service.bootstrap(
+    { studentId: '00root12', name: '测试初始化管理员', nickname: 'TESTER' },
+    rootPassword,
+  )
+  assert.equal(user.studentId, '00ROOT12')
+  assert.equal(user.nickname, 'TESTER')
+  assert.deepEqual(await store.read('student_ids', studentIdKey('00root12')), {
+    uid: user.uid,
+  })
+  const login = await service.login(
+    { studentId: '00rOoT12', password: rootPassword },
+    'test',
+  )
+  assert.equal((login.data as Identity).member.uid, user.uid)
+})
+
+test('member search is case-insensitive for partial student IDs', async () => {
+  const f = await fixture()
+  await f.create('00ab1234')
+  const lower = await f.call<Page<Member>>(
+    'GET',
+    '/api/members?search=ab123',
+    {},
+    f.cookie,
+  )
+  const upper = await f.call<Page<Member>>(
+    'GET',
+    '/api/members?search=AB123',
+    {},
+    f.cookie,
+  )
+  assert.equal(lower.data?.total, 1)
+  assert.deepEqual(lower.data?.items, upper.data?.items)
+})

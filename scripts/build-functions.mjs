@@ -8,9 +8,16 @@ await build({
   target: 'node22',
   bundle: true,
   format: 'cjs',
-  packages: 'external',
+  // Bundle shared workspace runtime helpers; only real cloud dependencies stay external.
+  external: [
+    '@cloudbase/node-sdk',
+    '@cloudbase/database',
+    'exceljs',
+    'yauzl',
+    'zod',
+  ],
 })
-// Only runtime dependencies; the type-only workspace dependency must never reach cloud installation.
+// Install external runtime dependencies in cloud; shared workspace code is bundled above.
 await writeFile(
   'deploy/package.json',
   JSON.stringify(

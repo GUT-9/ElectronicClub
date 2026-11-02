@@ -81,7 +81,7 @@ async function getFile(path: string, name: string) {
   <p class="eyebrow">BATCH IMPORT</p>
   <h1>Excel 批量导入</h1>
   <p>
-    学号必须为文本，保留前导零。支持学号、姓名、性别、学院、专业、班级、年级；每文件最多1000行，分批20行创建。
+    学号必须为4–24位英文字母或数字文本，统一转为大写，保留前导零；不允许空格或特殊字符。支持学号、姓名、性别、学院、专业、班级、年级；每文件最多1000行，分批20行创建。
   </p>
   <div class="action-row">
     <button
@@ -125,9 +125,7 @@ async function getFile(path: string, name: string) {
     </p>
     <p>
       预览错误
-      {{
-        job.rows.filter((row) => row.error).length
-      }}
+      {{ job.rows.filter((row) => row.error).length }}
       行。首次创建昵称与姓名相同，默认普通成员，首次登录必须修改密码；初始激活凭据7天后过期。
     </p>
     <div class="table-scroll">

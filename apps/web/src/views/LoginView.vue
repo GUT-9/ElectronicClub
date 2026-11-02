@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { STUDENT_ID_PATTERN } from '@electronic-club/shared'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import CircuitBoard from '../components/CircuitBoard.vue'
@@ -47,14 +48,17 @@ async function submit() {
         密码已更新，请使用新密码重新登录。
       </p>
       <p class="login-note">
-        使用学号和密码登录。首次登录须先修改初始密码，才能使用成员功能。
+        使用4–24位字母数字学号和密码登录，学号不区分大小写。首次登录须先修改初始密码。
       </p>
       <form class="member-form" @submit.prevent="submit">
         <label for="student-id">学号</label
         ><input
           id="student-id"
           v-model="studentId"
-          inputmode="numeric"
+          :pattern="STUDENT_ID_PATTERN"
+          minlength="4"
+          autocapitalize="characters"
+          :spellcheck="false"
           autocomplete="username"
           required
           maxlength="24"

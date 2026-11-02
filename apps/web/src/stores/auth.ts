@@ -1,3 +1,4 @@
+import { normalizeStudentId } from '@electronic-club/shared'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Identity } from '@electronic-club/shared'
@@ -27,7 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
   async function login(studentId: string, password: string) {
     identity.value = await request<Identity>('/auth/login', 'POST', {
-      studentId,
+      studentId: normalizeStudentId(studentId),
       password,
     })
     restored.value = true

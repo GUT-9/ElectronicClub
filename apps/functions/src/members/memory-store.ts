@@ -40,7 +40,7 @@ export class MemoryStore implements Store {
         Object.entries(filter).every(([k, v]) =>
           k === '_search'
             ? ['studentId', 'name', 'nickname'].some((f) =>
-                String(row[f]).includes(String(v)),
+                String(row[f]).toUpperCase().includes(String(v).toUpperCase()),
               )
             : k === '_notDeleted'
               ? row.status !== 'deleted'

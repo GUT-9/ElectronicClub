@@ -37,6 +37,7 @@ async function run() {
     {
       studentId: process.env.BOOTSTRAP_STUDENT_ID,
       name: process.env.BOOTSTRAP_NAME,
+      nickname: process.env.BOOTSTRAP_NICKNAME || undefined,
     },
     process.env.BOOTSTRAP_PASSWORD,
   )
