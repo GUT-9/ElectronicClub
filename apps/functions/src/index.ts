@@ -1,3 +1,4 @@
+import { sessionCookie, sessionCookieConfig } from './members/cookie'
 import { randomUUID } from 'node:crypto'
 import { DatabaseFailure } from './members/pg-store'
 import { ZodError } from 'zod'
@@ -105,10 +106,7 @@ export function createHandler(resolveService: () => MemberService) {
           throw new ApiError(400, 'INVALID_JSON', 'JSON格式错误')
         }
       }
-      const cookieName =
-        process.env.COOKIE_SECURE === 'false'
-          ? 'ec-session'
-          : '__Host-ec-session'
+      const cookieName = sessionCookieConfig().name
       const token =
         (requestHeaders.cookie ?? '')
           .split(';')
@@ -234,8 +232,10 @@ export function createHandler(resolveService: () => MemberService) {
               event.queryStringParameters ?? {},
             )
       if (result.token || result.clearCookie) {
-        headers['Set-Cookie'] =
-          `${cookieName}=${result.token ?? ''}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${result.clearCookie ? '0' : '28800'}${process.env.COOKIE_SECURE === 'false' ? '' : '; Secure'}`
+        headers['Set-Cookie'] = sessionCookie(
+          result.token ?? '',
+          Boolean(result.clearCookie),
+        )
       }
       return result.error
         ? respond(result.status ?? 400, { success: false, error: result.error })
@@ -246,12 +246,7 @@ export function createHandler(resolveService: () => MemberService) {
         error.status === 401 &&
         path === '/api/auth/logout'
       ) {
-        const name =
-          process.env.COOKIE_SECURE === 'false'
-            ? 'ec-session'
-            : '__Host-ec-session'
-        headers['Set-Cookie'] =
-          `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.COOKIE_SECURE === 'false' ? '' : '; Secure'}`
+        headers['Set-Cookie'] = sessionCookie('', true)
         return respond(200, { success: true, data: { ok: true } })
       }
       if (error instanceof ApiError)

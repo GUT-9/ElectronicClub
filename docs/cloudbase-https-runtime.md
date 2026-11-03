@@ -113,3 +113,13 @@ bootstrap 支持字母学号、大写规范化、前导零和 nickname；密码�
 这是本地PG权限语义验证；CloudBase上的GRANT/函数创建、令牌角色映射、正式管理员创建均未由本任务执行或报告成功。此轮只改SQL及运维工具，已上传且能到http_rpc阶段的函数不需要为这次SQL角色修复重新上传；仓库ZIP同时更新SQL资源以保持一致。
 
 SQL由 `npm run sql:generate` 生成，`npm run check`包含一致性检查。今后修改原003/004模板后需重新生成托管SQL；不要手工编辑生成文件造成两套权限不一致。
+
+## 登录200后me401：跨站Cookie的有限联调
+
+官网eclub.gut9.cn与默认API的app.tcloudbase.com属于跨站。默认SameSite=Lax不会在这种fetch请求中发送会话Cookie。仅在少量开发联调时，可在云函数设置 `COOKIE_SAMESITE=none`，保留 `COOKIE_SECURE=true` 和精确HTTPS的ALLOWED_ORIGIN。上传包含此配置支持的新ZIP后生效；默认仍是Lax。None配合非Secure或非HTTPS Origin会被拒绝，CSRF的Origin、X-Requested-With及JSON检查保留。
+
+新版前端在登录200后立即用Cookie恢复me，只有恢复成功才进入用户中心。200后401时会显示会话未恢复的具体提示，不将登录响应中的档案当作已建立的浏览器会话。
+
+浏览器仍可能独立禁止第三方Cookie；SameSite=None不能绕过这一策略。请查看浏览器的Set-Cookie拦截原因，不把本地自动测试当成所有浏览器都支持的证明。该设置没有更改CloudBase默认域名的开发测试限制，不能据此用于500人正式运营。正式部署仍需要合规、受支持的同站点API入口。
+
+回滚：移除COOKIE_SAMESITE或设为lax；清理测试会话后重新登录。API密码哈希、服务端会话验证、RBAC和数据库角色保持原实现。

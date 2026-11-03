@@ -618,8 +618,9 @@ test('partial updates retain untouched data and multi-batch imports reject stale
 })
 
 test('alphanumeric student IDs normalize to uppercase, preserve zeroes and reject invalid raw input', async () => {
-  const { normalizeStudentId, isValidStudentId } =
-    await import('../packages/shared/src/student-id')
+  const { normalizeStudentId, isValidStudentId } = await import(
+    '../packages/shared/src/student-id'
+  )
   for (const [input, expected] of [
     ['00123456', '00123456'],
     ['00AB1234', '00AB1234'],
@@ -652,8 +653,9 @@ test('alphanumeric student IDs normalize to uppercase, preserve zeroes and rejec
 })
 
 test('case-insensitive create uses one normalized unique mapping and stores string IDs', async () => {
-  const { studentIdKey, digest } =
-    await import('../apps/functions/src/members/crypto')
+  const { studentIdKey, digest } = await import(
+    '../apps/functions/src/members/crypto'
+  )
   const f = await fixture(),
     user = await f.create('00ab1234')
   assert.equal(user.studentId, '00AB1234')
@@ -880,4 +882,56 @@ test('member search is case-insensitive for partial student IDs', async () => {
   )
   assert.equal(lower.data?.total, 1)
   assert.deepEqual(lower.data?.items, upper.data?.items)
+})
+
+test('cross-site testing sets Secure/HttpOnly SameSite=None, preserves CSRF, restores and clears sessions', async () => {
+  const previous = {
+    origin: process.env.ALLOWED_ORIGIN,
+    secure: process.env.COOKIE_SECURE,
+    site: process.env.COOKIE_SAMESITE,
+  }
+  try {
+    process.env.ALLOWED_ORIGIN = 'https://club.example.test'
+    process.env.COOKIE_SECURE = 'true'
+    process.env.COOKIE_SAMESITE = 'none'
+    const f = await fixture()
+    const login = await f.login('00000001', rootPassword)
+    const cookie = login.response.headers['Set-Cookie']!
+    assert.match(cookie, /^__Host-ec-session=/)
+    assert.match(cookie, /SameSite=None/)
+    assert.match(cookie, /; Secure/)
+    assert.match(cookie, /; HttpOnly/)
+    assert.equal(
+      (await f.call('GET', '/api/auth/me', {}, login.cookie)).response
+        .statusCode,
+      200,
+    )
+    assert.equal(
+      (
+        await f.call('POST', '/api/auth/logout', {}, login.cookie, {
+          origin: 'https://evil.example',
+        })
+      ).response.statusCode,
+      403,
+    )
+    const logout = await f.call('POST', '/api/auth/logout', {}, login.cookie)
+    assert.match(
+      logout.response.headers['Set-Cookie']!,
+      /SameSite=None; Max-Age=0; Secure/,
+    )
+    assert.equal(
+      (await f.call('GET', '/api/auth/me', {}, login.cookie)).response
+        .statusCode,
+      401,
+    )
+  } finally {
+    for (const [key, value] of Object.entries({
+      ALLOWED_ORIGIN: previous.origin,
+      COOKIE_SECURE: previous.secure,
+      COOKIE_SAMESITE: previous.site,
+    })) {
+      if (value === undefined) delete process.env[key]
+      else process.env[key] = value
+    }
+  }
 })

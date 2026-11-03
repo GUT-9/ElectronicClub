@@ -27,12 +27,24 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
   async function login(studentId: string, password: string) {
-    identity.value = await request<Identity>('/auth/login', 'POST', {
+    clear()
+    await request<Identity>('/auth/login', 'POST', {
       studentId: normalizeStudentId(studentId),
       password,
     })
-    restored.value = true
+    try {
+      identity.value = await request<Identity>('/auth/me')
+      restored.value = true
+    } catch (error) {
+      clear()
+      if (error instanceof RequestError && error.status === 401)
+        throw new Error(
+          '账号密码已验证，但浏览器未能恢复登录会话。请检查 Cookie 设置或联系管理员。',
+        )
+      throw error
+    }
   }
+
   async function logout() {
     await request('/auth/logout', 'POST', {})
     clear()
