@@ -90,7 +90,7 @@ export class HttpStore implements Store {
   }
 
   async run<T>(fn: (tx: Transaction) => Promise<T>): Promise<T> {
-    for (let attempt = 0; attempt < 5; attempt++) {
+    for (let attempt = 0; attempt < 32; attempt++) {
       const reads = new Map<string, Promise<Read>>(),
         writes = new Map<string, Write>()
       // Share in-flight reads too: parallel role lookups must observe the same version.
@@ -141,6 +141,10 @@ export class HttpStore implements Store {
         p_writes: [...writes.values()],
       })) as { ok: boolean; conflict?: boolean }
       if (commit.ok) return result
+      if (commit.conflict)
+        await new Promise((resolve) =>
+          setTimeout(resolve, 5 + Math.floor(Math.random() * 20)),
+        )
       if (!commit.conflict)
         throw new DatabaseFailure('http_commit', 'RDB_COMMIT_REJECTED')
     }

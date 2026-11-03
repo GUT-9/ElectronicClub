@@ -72,7 +72,7 @@ export function createHandler(resolveService: () => MemberService) {
     }
     // Unknown public routes preserve 404 without forcing database initialization.
     if (
-      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit)(?:\/|$)/.test(
+      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups)(?:\/|$)/.test(
         path,
       )
     )
@@ -113,7 +113,11 @@ export function createHandler(resolveService: () => MemberService) {
           .map((x) => x.trim())
           .find((x) => x.startsWith(`${cookieName}=`))
           ?.slice(cookieName.length + 1) ?? ''
-      if (!token && !(path === '/api/auth/login' && method === 'POST'))
+      if (
+        !token &&
+        !(path === '/api/auth/login' && method === 'POST') &&
+        !(method === 'GET' && path.startsWith('/api/public/'))
+      )
         throw new ApiError(401, 'UNAUTHENTICATED', '请先登录')
       const service = resolveService()
       if (path === '/api/imports/template' && method === 'GET') {
@@ -231,6 +235,18 @@ export function createHandler(resolveService: () => MemberService) {
               input,
               event.queryStringParameters ?? {},
             )
+      if (result.binary) {
+        headers['Content-Type'] =
+          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        headers['Content-Disposition'] =
+          `attachment; filename="registrations.xlsx"; filename*=UTF-8''${encodeURIComponent(result.filename ?? 'registrations.xlsx')}`
+        return {
+          statusCode: 200,
+          headers,
+          body: result.binary.toString('base64'),
+          isBase64Encoded: true,
+        }
+      }
       if (result.token || result.clearCookie) {
         headers['Set-Cookie'] = sessionCookie(
           result.token ?? '',

@@ -726,6 +726,23 @@ test(
         }),
       )
       assert.equal(await store.read('system', 'managed-rollback'), null)
+      const legacyBefore = (
+        await owner.query(
+          'SELECT (SELECT jsonb_agg(data ORDER BY id) FROM electronicclub.users) AS users,(SELECT jsonb_agg(data ORDER BY id) FROM electronicclub.roles) AS roles,(SELECT jsonb_agg(data ORDER BY id) FROM electronicclub.credentials) AS credentials',
+        )
+      ).rows[0]
+      await owner.query(await readFile('cloudbase/sql/008-stage3.sql', 'utf8'))
+      await owner.query(await readFile('cloudbase/sql/008-stage3.sql', 'utf8'))
+      assert.deepEqual(
+        (
+          await owner.query(
+            'SELECT (SELECT jsonb_agg(data ORDER BY id) FROM electronicclub.users) AS users,(SELECT jsonb_agg(data ORDER BY id) FROM electronicclub.roles) AS roles,(SELECT jsonb_agg(data ORDER BY id) FROM electronicclub.credentials) AS credentials',
+          )
+        ).rows[0],
+        legacyBefore,
+      )
+      const { stage3Suite } = await import('./helpers/stage3-suite')
+      await stage3Suite(service, store, login.token!)
       console.log(
         'Managed-role SQL executed by a real NOCREATEROLE schema owner; service-role bootstrap/login and browser isolation passed',
       )

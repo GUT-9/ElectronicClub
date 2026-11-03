@@ -151,3 +151,9 @@ EdgeOne **前端构建环境变量** `VITE_API_BASE_URL` 应填写后端源地�
 `CLOUDBASE_APIKEY`是本项目自定义的后端配置名，不是控制台内置选项。目前尚未验证该环境的Key获取与SQL角色授权方式；不要把管理员密码填进去。数据库连接与前端健康检查需分别验收。默认网关仅限开发测试，不能据此宣称正式生产登录或跨站Cookie可用。
 
 跨站联调：若登录200而me401，现有Lax Cookie不会在官网到默认API的跨站fetch中发送。新包支持显式 `COOKIE_SAMESITE=none`，必须配合Secure及精确HTTPS Origin；默认仍Lax，CSRF保留。现代浏览器可能继续禁止第三方Cookie，正式API域名限制也仍存在。详见[跨站联调说明](docs/cloudbase-https-runtime.md)。
+
+## 第三阶段（独立功能分支）
+
+活动发布、成员报名/审核/取消、签到/补签、名单XLSX导出、新闻公告和全站弹窗已实现，延续现有登录、RBAC和官网风格。部署与完整API清单见 [第三阶段部署手册](docs/stage3-deploy.md)，升级SQL为 [008-stage3.sql](cloudbase/sql/008-stage3.sql)。ZIP和SHA256位于deployment-packages。
+
+新增迁移尚未在现有生产数据库验收，本阶段保留在`feat/stage3-events-content`，不自动更新main触发正式前端部署。没有新增正式活动/文章、重置账号或执行云端SQL。

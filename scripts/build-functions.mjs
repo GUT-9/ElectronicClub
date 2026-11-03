@@ -59,3 +59,5 @@ await copyFile(
   'deploy/deploy-preflight.mjs',
 )
 await copyFile('../../scripts/verify-api.mjs', 'deploy/verify-api.mjs')
+
+await copyFile('../../docs/stage3-deploy.md', 'deploy/DEPLOY-STAGE3.md')

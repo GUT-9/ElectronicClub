@@ -1,3 +1,4 @@
+import { cleanStage3Privacy } from './stage3/privacy'
 // Private privacy/retention CLI; never exported by the HTTP entry point.
 import { HttpStore } from './members/http-store'
 import { PgStore as CloudStore } from './members/pg-store'
@@ -64,6 +65,7 @@ async function main() {
       if ((page + 1) * 100 >= result.total) break
       page++
     }
+    await cleanStage3Privacy(store, uid)
     await store.run(async (tx) => {
       await tx.set('privacy_jobs', uid, {
         ...privacy,

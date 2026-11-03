@@ -23,26 +23,26 @@ export const router = createRouter({
         },
         {
           path: 'news',
-          component: () => import('./views/ContentListView.vue'),
-          props: { kind: 'news' },
+          component: () => import('./views/PublicationListView.vue'),
+          props: { kind: 'articles' },
           meta: { title: '新闻公告' },
         },
         {
           path: 'news/:id',
-          component: () => import('./views/ContentDetailView.vue'),
-          props: { kind: 'news' },
+          component: () => import('./views/PublicationDetailView.vue'),
+          props: { kind: 'articles' },
           meta: { title: '公告详情' },
         },
         {
           path: 'activities',
-          component: () => import('./views/ContentListView.vue'),
-          props: { kind: 'activities' },
+          component: () => import('./views/PublicationListView.vue'),
+          props: { kind: 'events' },
           meta: { title: '活动中心' },
         },
         {
           path: 'activities/:id',
-          component: () => import('./views/ContentDetailView.vue'),
-          props: { kind: 'activities' },
+          component: () => import('./views/PublicationDetailView.vue'),
+          props: { kind: 'events' },
           meta: { title: '活动详情' },
         },
         {
@@ -84,6 +84,27 @@ export const router = createRouter({
       component: () => import('./layouts/AdminLayout.vue'),
       meta: { auth: true },
       children: [
+        {
+          path: 'events',
+          component: () => import('./views/Stage3AdminView.vue'),
+          props: { kind: 'events' },
+          meta: { title: '活动与报名管理' },
+        },
+        {
+          path: 'articles',
+          component: () => import('./views/Stage3AdminView.vue'),
+          props: { kind: 'articles' },
+          meta: { title: '新闻公告管理' },
+        },
+        {
+          path: 'popups',
+          component: () => import('./views/Stage3AdminView.vue'),
+          props: { kind: 'popups' },
+          meta: {
+            title: '全站弹窗管理',
+            permission: 'announcements.popup.manage',
+          },
+        },
         {
           path: '',
           component: () => import('./views/AdminView.vue'),
@@ -156,6 +177,18 @@ router.beforeEach(async (to) => {
         'roles.read',
         'roles.assign',
         'audit.read',
+        'events.registrations.read',
+        'events.registrations.review',
+        'events.registrations.export',
+        'events.checkin.manage',
+        'events.delete',
+        'articles.create',
+        'articles.publish',
+        'articles.delete',
+        'events.create',
+        'events.edit',
+        'articles.edit',
+        'announcements.popup.manage',
       ].some(auth.can)
     )
       return '/account'

@@ -26,3 +26,9 @@ export {
   isValidStudentId,
   normalizeStudentId,
 } from './student-id'
+export type {
+  ClubEvent,
+  Registration,
+  ClubArticle,
+  PopupAnnouncement,
+} from './stage3'

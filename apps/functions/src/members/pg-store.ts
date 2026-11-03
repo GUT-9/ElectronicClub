@@ -1,6 +1,13 @@
 import { Pool } from 'pg'
 import type { Store, Transaction, ListOptions } from './store'
 const tables = new Set([
+  'events',
+  'event_managers',
+  'registrations',
+  'checkins',
+  'articles',
+  'popup_announcements',
+  'popup_state',
   'users',
   'roles',
   'permissions',

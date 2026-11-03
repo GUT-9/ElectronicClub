@@ -5,6 +5,13 @@ import BrandLogo from '../components/BrandLogo.vue'
 const auth = useAuthStore()
 const links = computed(() =>
   [
+    { to: '/admin/events', label: '活动与报名', permission: '' },
+    { to: '/admin/articles', label: '新闻公告', permission: '' },
+    {
+      to: '/admin/popups',
+      label: '全站弹窗',
+      permission: 'announcements.popup.manage',
+    },
     { to: '/admin', label: '工作概览', permission: '' },
     { to: '/admin/members', label: '成员列表', permission: 'members.read' },
     {
@@ -20,7 +27,16 @@ const links = computed(() =>
     { to: '/admin/roles', label: '角色管理', permission: 'roles.read' },
     { to: '/admin/permissions', label: '权限配置', permission: 'roles.read' },
     { to: '/admin/audit', label: '操作审计', permission: 'audit.read' },
-  ].filter((item) => !item.permission || auth.can(item.permission)),
+  ].filter((item) =>
+    item.to === '/admin/articles'
+      ? [
+          'articles.create',
+          'articles.edit',
+          'articles.publish',
+          'articles.delete',
+        ].some(auth.can)
+      : !item.permission || auth.can(item.permission),
+  ),
 )
 </script>
 <template>
@@ -28,7 +44,7 @@ const links = computed(() =>
     <aside class="admin-sidebar">
       <RouterLink to="/" class="brand"
         ><BrandLogo /><span class="brand-name"
-          >电子俱乐部<small>成员与权限管理</small></span
+          >电子俱乐部<small>社团管理工作区</small></span
         ></RouterLink
       >
       <p class="eyebrow">WORKSPACE</p>

@@ -1,3 +1,4 @@
+import { Stage3Service } from '../stage3/service'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
 import type {
@@ -48,6 +49,8 @@ interface Context extends Identity {
   sessionId: string
 }
 interface Result {
+  binary?: Buffer
+  filename?: string
   status?: number
   data?: unknown
   error?: { code: string; message: string }
@@ -461,6 +464,12 @@ export class MemberService {
     input: unknown,
     query: Record<string, string>,
   ): Promise<Result> {
+    if (/^\/api\/(?:public|events|articles|popups)(?:\/|$)/.test(path))
+      return new Stage3Service(
+        this.store,
+        (token, fn) => this.secure(token, fn),
+        this.clock,
+      ).execute(token, method, path, input, query)
     if (method === 'POST' && path === '/api/imports/preview')
       return this.prepareImport(token, input)
     return this.secure(

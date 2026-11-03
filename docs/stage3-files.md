@@ -1,0 +1,39 @@
+# 第三阶段修改文件清单
+
+本清单包含实现、SQL、测试、部署说明及实际ZIP。迁移未在生产验证，交付保留功能分支。
+
+- `README.md`
+- `apps/functions/src/index.ts`
+- `apps/functions/src/maintenance.ts`
+- `apps/functions/src/members/http-store.ts`
+- `apps/functions/src/members/model.ts`
+- `apps/functions/src/members/pg-store.ts`
+- `apps/functions/src/members/service.ts`
+- `apps/functions/src/stage3/model.ts`
+- `apps/functions/src/stage3/privacy.ts`
+- `apps/functions/src/stage3/service.ts`
+- `apps/web/src/components/PopupNotice.vue`
+- `apps/web/src/components/SafeMarkdown.vue`
+- `apps/web/src/layouts/AdminLayout.vue`
+- `apps/web/src/router.ts`
+- `apps/web/src/stage3.ts`
+- `apps/web/src/style.css`
+- `apps/web/src/views/AccountView.vue`
+- `apps/web/src/views/AdminView.vue`
+- `apps/web/src/views/HomeView.vue`
+- `apps/web/src/views/PublicationDetailView.vue`
+- `apps/web/src/views/PublicationListView.vue`
+- `apps/web/src/views/Stage3AdminView.vue`
+- `cloudbase/sql/008-stage3-rollback-notes.sql`
+- `cloudbase/sql/008-stage3.sql`
+- `deployment-packages/README.md`
+- `deployment-packages/electronicclub-api.zip`
+- `deployment-packages/electronicclub-api.zip.sha256`
+- `docs/stage3-deploy.md`
+- `docs/stage3-files.md`
+- `packages/shared/src/index.ts`
+- `packages/shared/src/stage3.ts`
+- `scripts/build-functions.mjs`
+- `tests/helpers/stage3-suite.ts`
+- `tests/postgres.test.ts`
+- `tests/stage3.test.ts`

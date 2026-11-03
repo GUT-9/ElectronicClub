@@ -1,11 +1,32 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import type { ClubEvent, ClubArticle, Page } from '@electronic-club/shared'
+import { request } from '../member-api'
+import { beijing } from '../stage3'
+import PopupNotice from '../components/PopupNotice.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import CircuitBoard from '../components/CircuitBoard.vue'
 import SectionHeading from '../components/SectionHeading.vue'
 import EmptyState from '../components/EmptyState.vue'
 import { club, directions } from '../content'
+const recentEvents = ref<ClubEvent[]>([]),
+  recentNews = ref<ClubArticle[]>([]),
+  contentError = ref('')
+onMounted(async () => {
+  const results = await Promise.allSettled([
+    request<Page<ClubEvent>>('/public/events?pageSize=3'),
+    request<Page<ClubArticle>>('/public/articles?pageSize=3'),
+  ])
+  const events = results[0],
+    articles = results[1]
+  if (events.status === 'fulfilled') recentEvents.value = events.value.items
+  else contentError.value = '动态暂时无法加载，请稍后重试'
+  if (articles.status === 'fulfilled') recentNews.value = articles.value.items
+  else contentError.value = '动态暂时无法加载，请稍后重试'
+})
 </script>
 <template>
+  <PopupNotice />
   <section class="home-hero">
     <div class="container">
       <div class="hero-meta">
@@ -110,9 +131,27 @@ import { club, directions } from '../content'
         <h3>把知识接入现实。</h3>
         <p>焊接、测量、设计、制作。<br />每一个步骤，都是新的探索。</p>
       </div>
+      <div v-if="recentEvents.length">
+        <article
+          v-for="event in recentEvents"
+          :key="event.id"
+          class="publication-row"
+        >
+          <div>
+            <p class="eyebrow">{{ beijing(event.startsAt) }}</p>
+            <h3>
+              <RouterLink :to="`/activities/${event.id}`">{{
+                event.title
+              }}</RouterLink>
+            </h3>
+            <p>{{ event.summary }}</p>
+          </div>
+        </article>
+      </div>
       <EmptyState
+        v-else
         compact
-        title="暂无近期活动"
+        :title="contentError || '暂无近期活动'"
         description="活动安排确认后，将在这里发布。"
       />
     </div>
@@ -127,10 +166,28 @@ import { club, directions } from '../content'
         link-text="全部公告"
       />
       <div class="news-empty-row">
-        <span class="news-column-label">最新公告</span
-        ><EmptyState
+        <span class="news-column-label">最新公告</span>
+        <div v-if="recentNews.length">
+          <article
+            v-for="article in recentNews"
+            :key="article.id"
+            class="publication-row"
+          >
+            <div>
+              <p class="eyebrow">{{ beijing(article.publishedAt) }}</p>
+              <h3>
+                <RouterLink :to="`/news/${article.id}`">{{
+                  article.title
+                }}</RouterLink>
+              </h3>
+              <p>{{ article.summary }}</p>
+            </div>
+          </article>
+        </div>
+        <EmptyState
+          v-else
           compact
-          title="暂无新闻公告"
+          :title="contentError || '暂无新闻公告'"
           description="关注这里，了解社团的下一步动态。"
         />
       </div>

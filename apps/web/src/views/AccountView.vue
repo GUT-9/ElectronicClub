@@ -35,6 +35,18 @@ const hasAdmin = computed(() =>
     'roles.manage',
     'roles.assign',
     'audit.read',
+    'events.delete',
+    'events.registrations.review',
+    'articles.delete',
+    'events.create',
+    'events.edit',
+    'events.registrations.read',
+    'events.registrations.export',
+    'events.checkin.manage',
+    'articles.create',
+    'articles.edit',
+    'articles.publish',
+    'announcements.popup.manage',
   ].some(auth.can),
 )
 async function save() {
@@ -70,6 +82,7 @@ async function revoke() {
 }
 </script>
 <template>
+  <RouterLink to="/admin/events" class="text-link">我的活动工作区 →</RouterLink>
   <section class="container account-page" v-if="auth.member">
     <p class="eyebrow">MEMBER PROFILE</p>
     <img
