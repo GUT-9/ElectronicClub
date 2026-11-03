@@ -8,6 +8,7 @@ import type {
   Page,
 } from '@electronic-club/shared'
 import { request, download } from '../member-api'
+import { savePublication } from '../publication-api'
 import { beijing, localTime, utcTime, coverFile } from '../stage3'
 import { useAuthStore } from '../stores/auth'
 import SafeMarkdown from '../components/SafeMarkdown.vue'
@@ -43,6 +44,8 @@ const listFilter = reactive({ search: '', status: '', category: '' }),
 const props = defineProps<{ kind: 'events' | 'articles' | 'popups' }>(),
   auth = useAuthStore()
 const rows = ref<(ClubEvent | ClubArticle | PopupAnnouncement)[]>([]),
+  coverInput = ref<HTMLInputElement | null>(null),
+  coverMessage = ref(''),
   selected = ref(''),
   message = ref(''),
   busy = ref(false),
@@ -95,6 +98,8 @@ const form = reactive({
   priority: 0,
 })
 function reset() {
+  coverMessage.value = ''
+  if (coverInput.value) coverInput.value.value = ''
   selected.value = ''
   announce.value = false
   Object.assign(form, {
@@ -268,14 +273,25 @@ function payload() {
 }
 async function save() {
   await run(async () => {
-    const record = await request<{ id: string; managerIds?: string[] }>(
-      `/${props.kind}${selected.value && props.kind !== 'popups' ? '/' + selected.value : ''}`,
-      selected.value && props.kind !== 'popups' ? 'PATCH' : 'POST',
-      payload(),
-    )
+    const body = payload()
+    const record =
+      props.kind === 'popups'
+        ? await request<{ id: string; managerIds?: string[] }>(
+            '/popups', 'POST', body,
+          )
+        : await savePublication(
+            props.kind,
+            selected.value,
+            { ...body, cover: form.cover },
+            request,
+            (saved) => { selected.value = saved.id },
+          )
     selected.value = record.id
     if (record.managerIds) managerText.value = record.managerIds.join(',')
     message.value = '已保存'
+    coverMessage.value = form.cover
+      ? '封面已保存，并已从服务器重新读取确认。'
+      : ''
     if (announce.value && props.kind !== 'popups') {
       try {
         await request('/popups', 'POST', {
@@ -316,12 +332,20 @@ async function remove() {
 }
 async function picture(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
-  if (file)
-    await run(async () => {
+  if (file) {
+    coverMessage.value = '正在读取图片…'
+    const ok = await run(async () => {
       const image = await coverFile(file)
       if (props.kind === 'popups') form.image = image
       else form.cover = image
     })
+    coverMessage.value = ok ? '图片已读取，尚未保存。请点击下方“保存”。' : message.value
+    ;(e.target as HTMLInputElement).value = ''
+  }
+}
+function invalidField(e: Event) {
+  const field = e.target as HTMLInputElement
+  message.value = `尚未保存：${field.validationMessage}，请检查标记的必填项。`
 }
 function rosterQuery() {
   return new URLSearchParams({
@@ -545,13 +569,16 @@ function turnRoster(n: number) {
     v-if="selected || canSave"
     class="member-form stage3-editor"
     @submit.prevent="save"
+    @invalid.capture="invalidField"
   >
     <h2>{{ selected ? '编辑 / 发布新版本' : '新建内容' }}</h2>
     <label>标题<input v-model="form.title" maxlength="120" required /></label
     ><label>简介<textarea v-model="form.summary" maxlength="500" /></label
     ><label
       >封面图片（PNG/JPEG/WebP，1MB以内）<input
+        ref="coverInput"
         type="file"
+        :disabled="busy"
         accept="image/png,image/jpeg,image/webp"
         @change="picture" /></label
     ><img
@@ -560,6 +587,7 @@ function turnRoster(n: number) {
       class="editor-cover"
       alt="封面预览"
     />
+    <p v-if="coverMessage" role="status">{{ coverMessage }}</p>
     <template v-if="kind !== 'popups'"
       ><label
         >正文（支持 # 标题、- 列表；HTML按文本显示）<textarea
@@ -741,6 +769,7 @@ function turnRoster(n: number) {
         删除
       </button>
     </div>
+    <p role="status" aria-live="polite">{{ busy ? '正在处理，请稍候…' : message }}</p>
     <p
       v-if="
         kind !== 'popups' && selected && auth.can('announcements.popup.manage')
