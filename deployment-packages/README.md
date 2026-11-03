@@ -1,17 +1,15 @@
-# 第三阶段 CloudBase 完整部署包
+# 封面编辑兼容修复部署包
 
-源码提交 `c3bf71254b27b7735966a028f342cd28c1ae1a82`，功能分支 `feat/stage3-events-content`。**尚未合并 main，生产迁移兼容性尚未验证，不要直接触发现网前端部署。**
+源码提交 `f3bedcf56731a1d3e3ce9abc424376b911deb895`。支持 `POST /api/events/:id/update` 与 `POST /api/articles/:id/update`，保留 PATCH、原活动ID、报名和签到关系。前端保存后重新读取封面确认。
 
-下载本目录 [electronicclub-api.zip](electronicclub-api.zip)（GitHub 文件页 Download raw file），上传现有 `electronicclub-api`，入口 `index.main`，运行时 Node.js 18.15。ZIP 根目录含 index.js、package.json、node_modules、diagnose.js、bootstrap.js、SQL 及部署文档；没有注入真实密码或密钥。
+下载 [electronicclub-api.zip](electronicclub-api.zip)（GitHub 文件页 Download raw file）。**先上传现有 electronicclub-api 云函数，再更新 EdgeOne 前端**。入口 `index.main`，兼容 Node.js18.15，不增加环境变量。已有第三阶段数据库无需执行新SQL、重新初始化或重建管理员。完整步骤见 [部署文档](../docs/stage3-deploy.md)。
 
-先阅读 [部署与回滚说明](../docs/stage3-deploy.md)，保留现有成员与管理员，仅执行 [008-stage3.sql](../cloudbase/sql/008-stage3.sql)。不要重新初始化数据库或管理员。新增权限需要既有超级管理员明确分配。
+`npm run check`：42项全部通过，含真实本地PostgreSQL/RPC、约126KB封面编辑、权限及CSRF。实际Node18.15最终部署入口配合本地受限PG账户通过登录、POST编辑、封面持久化和公开读取；浏览器以125,336字节真实JPEG验证编辑、详情及列表显示和错误提示。以上均为本地验证，不代表腾讯云已部署。未执行CloudBase上传或生产数据库操作。
 
-`npm ci`、`npm run check`（40项全部通过、含真实本地 PostgreSQL）及生产构建通过。浏览器375/430/1440/1920通过。最终部署入口在真实Node18.15、本地临时网关和真实PG service_role下通过登录/Cookie/RBAC/活动/报名/签到/文章/弹窗/Excel及诊断；临时网关不代表腾讯云实测。
+ZIP根目录含index.js、package.json、node_modules、diagnose.js、bootstrap.js及SQL/部署文档。未注入真实密码或密钥。
 
-生产依赖审计仍有10项 moderate，0 high/critical。Node18已上游EOL。未执行腾讯云上传、生产SQL迁移或EdgeOne正式部署。
-
-大小：12,140,007 字节。SHA-256：
+大小：12,140,669字节。SHA-256：
 
 ```
-4109aab00f70a400205b2b22489956fabeb74600c2c4593f9880fb114b4a6340
+d77a26cc8d3b84b33315d43c5be3c59a15b7c5017b6d7cd0b3dca4e6dd601ecd
 ```
