@@ -566,3 +566,175 @@ test(
     }
   },
 )
+
+test(
+  'managed PostgreSQL: existing service_role installs atomically without CREATEROLE; browser roles cannot read private data',
+  { skip: !url },
+  async () => {
+    const { HttpStore } = await import(
+      '../apps/functions/src/members/http-store'
+    )
+    assert.equal(new URL(url!).hostname, '127.0.0.1')
+    assert.equal(new URL(url!).pathname, '/club_test')
+    const admin = new Pool({ connectionString: url })
+    let owner: Pool | undefined, gateway: Pool | undefined
+    try {
+      for (const role of ['anon', 'authenticated', 'service_role']) {
+        await admin.query(
+          `DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='${role}') THEN CREATE ROLE ${role} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF; END $$`,
+        )
+      }
+      await admin.query(
+        "DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='club_managed_owner') THEN CREATE ROLE club_managed_owner LOGIN PASSWORD 'local-managed-only' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION; END IF; END $$",
+      )
+      await admin.query('DROP DATABASE IF EXISTS club_managed_test')
+      await admin.query(
+        'CREATE DATABASE club_managed_test OWNER club_managed_owner',
+      )
+      const databaseUrl = new URL(url!)
+      databaseUrl.pathname = '/club_managed_test'
+      gateway = new Pool({ connectionString: databaseUrl.href, max: 3 })
+      databaseUrl.username = 'club_managed_owner'
+      databaseUrl.password = 'local-managed-only'
+      owner = new Pool({ connectionString: databaseUrl.href, max: 1 })
+      assert.equal(
+        (
+          await owner.query(
+            'SELECT rolcreaterole FROM pg_roles WHERE rolname=current_user',
+          )
+        ).rows[0].rolcreaterole,
+        false,
+      )
+      await assert.rejects(
+        () => owner!.query('CREATE ROLE forbidden_managed_role'),
+        (error: unknown) => (error as { code: string }).code === '42501',
+      )
+      const install = await readFile(
+        'cloudbase/sql/editor-https-install.sql',
+        'utf8',
+      )
+      assert.ok(!install.includes('electronicclub_api'))
+      assert.ok(!/^\s*(?:CREATE|ALTER) ROLE /m.test(install))
+      await admin.query('GRANT service_role TO authenticated')
+      await assert.rejects(
+        () => owner!.query(install),
+        /PUBLIC_ROLE_INHERITS_PRIVATE_ACCESS/,
+      )
+      await owner.query('ROLLBACK')
+      assert.equal(
+        (
+          await owner.query(
+            "SELECT to_regclass('electronicclub.users') AS name",
+          )
+        ).rows[0].name,
+        null,
+      )
+      await admin.query('REVOKE service_role FROM authenticated')
+      await owner.query(install)
+      await owner.query(install)
+      assert.ok(
+        (
+          await owner.query(
+            "SELECT to_regprocedure('public.ec_read(text,text)') AS name",
+          )
+        ).rows[0].name,
+      )
+      async function asRole(
+        role: 'service_role' | 'anon' | 'authenticated',
+        sql: string,
+        args: unknown[] = [],
+      ) {
+        const client = await gateway!.connect()
+        try {
+          await client.query('BEGIN')
+          await client.query(`SET LOCAL ROLE ${role}`)
+          const result = await client.query(sql, args)
+          await client.query('COMMIT')
+          return result
+        } catch (error) {
+          await client.query('ROLLBACK')
+          throw error
+        } finally {
+          client.release()
+        }
+      }
+      const store = new HttpStore(async (name, args) => {
+        const calls: Record<string, [string, unknown[]]> = {
+          ec_read: [
+            'SELECT public.ec_read($1,$2) AS value',
+            [args.p_collection, args.p_id],
+          ],
+          ec_list: [
+            'SELECT public.ec_list($1,$2,$3,$4) AS value',
+            [args.p_collection, args.p_filter, args.p_offset, args.p_limit],
+          ],
+          ec_commit: [
+            'SELECT public.ec_commit($1,$2) AS value',
+            [JSON.stringify(args.p_reads), JSON.stringify(args.p_writes)],
+          ],
+        }
+        const call = calls[name]!
+        return (await asRole('service_role', call[0], call[1])).rows[0].value
+      })
+      const service = new MemberService(store)
+      const root = await service.bootstrap(
+        { studentId: '00managed1', name: 'Managed test', nickname: 'TEST' },
+        'Managed-Test-Password123',
+      )
+      const login = await service.login(
+        { studentId: '00MANAGED1', password: 'Managed-Test-Password123' },
+        'local',
+      )
+      assert.equal((login.data as Identity).super, true)
+      assert.ok(login.token)
+      await owner.query(install)
+      assert.equal(
+        (await store.read<Member>('users', root.uid))!.studentId,
+        '00MANAGED1',
+      )
+      assert.ok(
+        (await service.execute(login.token!, 'GET', '/api/auth/me', {}, {}))
+          .data,
+      )
+      for (const role of ['anon', 'authenticated'] as const) {
+        await assert.rejects(
+          () =>
+            asRole(role, "SELECT public.ec_read('credentials',$1)", [root.uid]),
+          (error: unknown) => (error as { code: string }).code === '42501',
+        )
+        await assert.rejects(
+          () => asRole(role, 'SELECT data FROM electronicclub.users'),
+          (error: unknown) => (error as { code: string }).code === '42501',
+        )
+        await assert.rejects(
+          () => asRole(role, 'SELECT data FROM electronicclub.sessions'),
+          (error: unknown) => (error as { code: string }).code === '42501',
+        )
+      }
+      // The schema owner is not silently treated as the HTTP runtime identity.
+      await assert.rejects(
+        () => owner!.query("SELECT public.ec_read('users',$1)", [root.uid]),
+        /UNSAFE_BACKEND_ROLE/,
+      )
+      await assert.rejects(() =>
+        store.run(async (tx) => {
+          await tx.set('system', 'managed-rollback', { value: 1 })
+          await tx.set('users', 'managed-duplicate', {
+            ...(await store.read<Member>('users', root.uid))!,
+            uid: 'managed-duplicate',
+          })
+        }),
+      )
+      assert.equal(await store.read('system', 'managed-rollback'), null)
+      console.log(
+        'Managed-role SQL executed by a real NOCREATEROLE schema owner; service-role bootstrap/login and browser isolation passed',
+      )
+    } finally {
+      await owner?.end()
+      await gateway?.end()
+      await admin.query('REVOKE service_role FROM authenticated')
+      await admin.query('DROP DATABASE IF EXISTS club_managed_test')
+      await admin.end()
+    }
+  },
+)

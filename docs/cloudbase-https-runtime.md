@@ -1,3 +1,5 @@
+> **托管PG权限修复：** 默认安装SQL复用已经确认存在的`service_role`，不再创建electronicclub_api，也不需要CREATEROLE权限。匿名角色和普通登录角色没有成员数据/RPC授权。云函数令牌实际SQL角色必须为service_role，仍需真实环境验证。
+
 > **最新修复：** 默认复用SCF平台注入的临时执行身份，不再强制填写CLOUDBASE_APIKEY。实现依据为官方node-sdk 3.18.7的prepareCredentials、auth.getClientCredential和签名请求器。仍需验证执行角色IAM权限、令牌对应的SQL角色授权、RPC安装及管理员初始化；本地测试不能证明腾讯云已部署成功。
 
 # 用环境 ID 访问 CloudBase PostgreSQL：HTTPS 运行通道
@@ -19,11 +21,12 @@
 ### A. 控制台 / 具备相应工具的 Agent
 
 1. 保留已有数据库、函数和 `/api` 网关。先执行 `cloudbase/sql/editor-capability-check.sql` 检查已有表；不要删除供应商 schema。
-2. 经授权的 SQL Editor 执行完整 **`cloudbase/sql/editor-https-install.sql`**。这是001、002、创建 NOLOGIN 受限角色、003授权、004 RPC 的完整顺序合集。不要再另外重复执行所有独立文件。可重复执行，不删除已有用户；不兼容的旧表会报错，应停止检查，不能强行覆盖。不同部分独立提交，部分失败后检查并修复再重试，不能当成整份已成功。
-3. 默认使用SCF执行身份，无需寻找API Key。确认平台为函数注入TENCENTCLOUD_SECRETID/SECRETKEY及可选SESSIONTOKEN临时凭据，执行角色有目标环境访问权限；不要人工粘贴账号长期密钥。通过官方`/auth/v1/token/clientCredential`签名换取Bearer令牌，确认该服务端身份实际SQL角色映射。如果该角色不是 electronicclub_api，核实该角色不与浏览器/普通用户共用后，按 `005-https-role-binding.sql` 替换占位符并授权。默认文件会拒绝执行；禁止猜测角色名，禁止授予 anon/authenticated/PUBLIC。
-4. 若套餐/Editor禁止 CREATE ROLE、GRANT、自定义 RPC，或没有官方支持的私有 Key/SQL角色授权途径，这条通道仍被阻断，需要提供方确认。**不能改成给匿名角色开放低层数据函数。** 管理 API 的迁移权限不等于运行时 Key 的数据权限。
+2. 经授权的SQL Editor执行完整 **`cloudbase/sql/editor-https-install.sql`**。脚本把001、002和新006托管角色授权/RPC合并到一个事务；复用既有service_role，不包含CREATE ROLE或角色成员关系调整。已创建的表可保留，脚本可重试，数据不会被重建。执行失败需停止并保留第一条错误。
+3. 脚本预检查service_role存在、非superuser/建库/建角色/复制角色，并确认anon/authenticated不能继承服务角色或私有数据所有者权限。它仅授权本应用私有schema及ec_*函数，不修改供应商角色定义；不会授予匿名或普通登录角色成员数据权限。
+4. 云函数默认使用平台临时执行身份换令牌。**存在service_role不等于令牌已映射到它**；实际RPC调用必须以service_role执行，管理SQL账号即使拥有这些表也不会被RPC自动当成服务端身份。SQL安装后再实际登录/诊断验证，不能换成匿名角色或管理账号绕过检查。
+5. `001/002/003/004/005`保留给原生PG/自建受限角色的旧路径；托管环境不要再执行005去修改平台角色成员关系。已有表仅需补权限/RPC时，可执行单独的 **006-managed-service-role.sql**；通常直接重跑完整安装文件更省事。
 
-`001/002/004` 也纳入 `scripts/cloudbase-sql.ts` 管理迁移计划；003和受限角色创建需先由有权限的DBA完成。已有001/002迁移内容和版本没有改变；新增004使用新版本，避免修改历史校验和。首次安装直接使用上面的完整Editor文件更直观。
+管理API迁移可显式使用 `scripts/cloudbase-sql.ts --managed --preview`，通过后 `--managed --apply --confirm-env=<env>`。该计划使用原有001/002及新版本006；没有修改已发布004的内容/校验和，不删除历史。管理API调用和当前SQL角色授权能力仍需真实IAM验证。未加--managed时保留旧自建角色计划，不适用于当前无法创建角色的托管SQL账号。
 
 ### B. 人工上传 ZIP 和填写环境变量
 
@@ -101,3 +104,12 @@ bootstrap 支持字母学号、大写规范化、前导零和 nickname；密码�
 新版错误日志保留upstreamStatus、允许列表中的upstreamCode、可识别的upstreamRequestId、operation和responseKind。例如INVALID_PATH会映射为RDB_ENDPOINT_NOT_AVAILABLE；PGRST106为RDB_SCHEMA_NOT_EXPOSED；嵌套的PostgREST错误也会识别。未知代码记为UNRECOGNIZED，不输出message/details/hint、原始HTML/JSON或凭据。前端继续返回通用503，不公开内部诊断。
 
 当表和RPC均存在但仍失败时，上传新版ZIP后只提供这条安全JSON日志即可继续定位，不需要重新调整前端地址或提供密码。本轮诊断改动不是腾讯云数据库部署成功的证明。
+
+
+## 托管角色适配的实际测试
+
+完整check含34项测试，全部执行。新增测试在本地真实PG中由NOCREATEROLE、NOSUPERUSER的数据库所有者执行整份安装SQL，验证可重复安装、原子失败回滚、保留用户与会话、service_role下初始化/登录/RPC事务，以及anon/authenticated无法读取用户/凭据/会话或调用ec_read。测试中还确认把service_role授予authenticated后安装会拒绝执行。
+
+这是本地PG权限语义验证；CloudBase上的GRANT/函数创建、令牌角色映射、正式管理员创建均未由本任务执行或报告成功。此轮只改SQL及运维工具，已上传且能到http_rpc阶段的函数不需要为这次SQL角色修复重新上传；仓库ZIP同时更新SQL资源以保持一致。
+
+SQL由 `npm run sql:generate` 生成，`npm run check`包含一致性检查。今后修改原003/004模板后需重新生成托管SQL；不要手工编辑生成文件造成两套权限不一致。

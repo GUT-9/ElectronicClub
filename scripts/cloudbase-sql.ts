@@ -28,12 +28,20 @@ interface Database {
   }): Promise<{ Status?: string }>
   executePGSql(options: { EnvId: string; Sql: string }): Promise<unknown>
 }
-export async function migrations(): Promise<Migration[]> {
+export async function migrations(
+  options: { managed?: boolean } = {},
+): Promise<Migration[]> {
   const result: Migration[] = []
   for (const [Version, Name, file] of [
     ['20261102000100', 'electronicclub_schema', '001-schema.sql'],
     ['20261102000200', 'electronicclub_indexes', '002-indexes.sql'],
-    ['20261103000100', 'electronicclub_http_rpc', '004-http-rpc.sql'],
+    options.managed
+      ? [
+          '20261103000200',
+          'electronicclub_managed_rpc',
+          '006-managed-service-role.sql',
+        ]
+      : ['20261103000100', 'electronicclub_http_rpc', '004-http-rpc.sql'],
   ]) {
     const original = await readFile(`cloudbase/sql/${file}`, 'utf8')
     // This official migration API consumes full SQL files. Do not nest explicit BEGIN/COMMIT.
@@ -86,7 +94,9 @@ export async function deploy(
   throw new Error('MIGRATION_TIMEOUT_CHECK_TASK_BEFORE_RETRY')
 }
 async function main() {
-  const items = await migrations()
+  const items = await migrations({
+    managed: process.argv.includes('--managed'),
+  })
   if (process.argv.includes('--plan')) {
     console.log(
       JSON.stringify(

@@ -1,3 +1,5 @@
+> **托管PG安装更新：当前SQL Editor没有CREATEROLE时，执行[现有service_role安装SQL](../cloudbase/sql/editor-https-install.sql)，不使用下文旧自建角色步骤。详见[最新步骤](cloudbase-https-runtime.md)。**
+
 > **运行时更新：默认改为PostgreSQL HTTPS RPC，不再必须提供TCP地址。请先阅读 [最新HTTPS操作步骤](cloudbase-https-runtime.md)。以下TCP配置仅适用于显式 DB_DRIVER=postgres-tcp。**
 
 # 最终操作手册：控制台、人工上传、私有终端

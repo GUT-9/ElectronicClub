@@ -17,8 +17,10 @@
     "lint": "eslint .",
     "build": "npm run build -w @electronic-club/shared && npm run build -w @electronic-club/functions && npm run build -w @electronic-club/web",
     "test": "node --import tsx --test tests/*.test.ts",
-    "check": "npm run lint && npm run typecheck && npm test && npm run build",
-    "package:functions": "npm run build -w @electronic-club/functions && node scripts/package-functions.mjs"
+    "check": "npm run sql:check && npm run lint && npm run typecheck && npm test && npm run build",
+    "package:functions": "npm run build -w @electronic-club/functions && node scripts/package-functions.mjs",
+    "sql:generate": "node scripts/generate-managed-sql.mjs",
+    "sql:check": "node scripts/generate-managed-sql.mjs --check"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

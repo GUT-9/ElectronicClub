@@ -33,3 +33,13 @@ test('management apply refuses conflicts, skips applied migrations and waits for
   db.previewPGUserMigrations = async () => ({ Executable: true, Pending: [] })
   assert.equal((await deploy(db, 'test', [], true)).status, 'already_applied')
 })
+
+test('managed migration plan uses existing provider role and leaves legacy migration unchanged', async () => {
+  const managed = await migrations({ managed: true }),
+    legacy = await migrations()
+  assert.deepEqual(managed.slice(0, 2), legacy.slice(0, 2))
+  assert.equal(legacy[2]!.Name, 'electronicclub_http_rpc')
+  assert.equal(managed[2]!.Name, 'electronicclub_managed_rpc')
+  assert.ok(managed[2]!.Query.includes("current_user <> 'service_role'"))
+  assert.ok(!managed[2]!.Query.includes('electronicclub_api'))
+})
