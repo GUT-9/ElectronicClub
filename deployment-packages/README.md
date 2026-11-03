@@ -1,13 +1,11 @@
-# CloudBase 控制台部署包：现有service_role安装适配
+# CloudBase 控制台部署包：跨站会话开发联调
 
-本ZIP对应源码提交 `c201bb2deb4d2a5770ead12656659304b0fa7de0`。GitHub文件页点击electronicclub-api.zip → **Download raw file**。
+本ZIP对应源码 `37c668c15af49e7ef4cd681fd01d1ab927f700e6`。GitHub文件页点击electronicclub-api.zip → Download raw file。
 
-- 上传入口index.main，支持Node18.15，根目录含完整node_modules、诊断/私有初始化脚本及sql/。
-- **本轮仅修改SQL和运维工具。已有函数若已到http_rpc阶段，无需为本轮SQL角色修复重新上传；先执行新版安装SQL。**
-- sql/editor-https-install.sql复用平台现有service_role，不创建electronicclub_api，不需要CREATEROLE；一份事务包括表、索引、服务角色授权和RPC。不得改为向anon/authenticated/PUBLIC开放数据。
-- npm ci、npm run check（34项测试全部执行，含真实PG的NOCREATEROLE账号安装、服务角色登录、匿名隔离、保留数据和回滚）及生产构建通过。
-- 当前云函数默认复用SCF临时执行身份。SQL已安装仍需验证令牌对应的SQL角色，以及完成私有管理员初始化。BOOTSTRAP_PASSWORD不会自动建账号。
-- 没有执行CloudBase生产SQL、正式账号创建或函数上传；本地测试不代表腾讯云上线成功。完整依赖仍有此前记录的moderate告警，本轮没有新增依赖。
-- ZIP大小：12,104,732字节；SHA256：`0cdcc96c7e33240eae6d1ca9ab17b94a1389a483fc9cc9200fbb15d901e1c69e`。
+本轮修改了函数Cookie逻辑，必须上传新ZIP才支持COOKIE_SAMESITE。入口index.main，兼容Node18.15，完整node_modules已包含。
 
-原生PG自建角色的003/004/005仅保留兼容用途；当前托管环境优先用新完整安装脚本，或已有表时用006-managed-service-role.sql。操作说明见[HTTPS部署文档](../docs/cloudbase-https-runtime.md)。
+少量开发联调可显式配置 `COOKIE_SAMESITE=none`，保留COOKIE_SECURE=true和精确HTTPS ALLOWED_ORIGIN。默认仍Lax；非HTTPS或非Secure的None配置会拒绝，CSRF和RBAC保留。浏览器仍可禁止第三方Cookie，这不改变默认API域名开发测试限制，不代表正式生产部署可用。
+
+npm run check通过37项测试（含真实PG），浏览器验证200后401会显示会话未恢复并留在登录页。前端需从最新main构建。SQL仍使用现有service_role安装版本。
+
+ZIP大小12,105,142字节；SHA256 `2e4f19b22046d19f189ec47d7fb504cc48dbe73c4a663a07daf873794d5c265d`。本轮未执行腾讯云函数部署或云端账号操作。详细步骤见[部署文档](../docs/cloudbase-https-runtime.md)。
