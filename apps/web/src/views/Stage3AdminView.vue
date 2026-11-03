@@ -9,6 +9,7 @@ import type {
 } from '@electronic-club/shared'
 import { request, download } from '../member-api'
 import { savePublication } from '../publication-api'
+import { fitCover, inlineImageBytes } from '../cover'
 import { beijing, localTime, utcTime, coverFile } from '../stage3'
 import { useAuthStore } from '../stores/auth'
 import SafeMarkdown from '../components/SafeMarkdown.vue'
@@ -273,6 +274,9 @@ function payload() {
 }
 async function save() {
   const saved = await run(async () => {
+    if (props.kind === 'popups') form.image = await fitCover(form.image)
+    else form.cover = await fitCover(form.cover)
+    if (announce.value) notice.image = await fitCover(notice.image)
     const body = payload()
     const record =
       props.kind === 'popups'
@@ -333,13 +337,16 @@ async function remove() {
 async function picture(e: Event) {
   const file = (e.target as HTMLInputElement).files?.[0]
   if (file) {
-    coverMessage.value = '正在读取图片…'
+    coverMessage.value = '正在读取并压缩图片…'
     const ok = await run(async () => {
       const image = await coverFile(file)
       if (props.kind === 'popups') form.image = image
       else form.cover = image
     })
-    coverMessage.value = ok ? '图片已读取，尚未保存。请点击下方“保存”。' : message.value
+    const bytes = inlineImageBytes(props.kind === 'popups' ? form.image : form.cover)
+    coverMessage.value = ok
+      ? `图片已处理${bytes === null ? '' : `（${(bytes / 1024).toFixed(1)}KB）`}，尚未保存。请点击下方“保存”。`
+      : message.value
     ;(e.target as HTMLInputElement).value = ''
   }
 }
@@ -575,7 +582,7 @@ function turnRoster(n: number) {
     <label>标题<input v-model="form.title" maxlength="120" required /></label
     ><label>简介<textarea v-model="form.summary" maxlength="500" /></label
     ><label
-      >封面图片（PNG/JPEG/WebP，1MB以内）<input
+      >封面图片（PNG/JPEG/WebP，原文件1MB以内，自动压缩）<input
         ref="coverInput"
         type="file"
         :disabled="busy"

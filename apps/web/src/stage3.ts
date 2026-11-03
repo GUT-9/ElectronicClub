@@ -13,19 +13,7 @@ export const localTime = (value: string) =>
     : ''
 export const utcTime = (value: string) =>
   value ? new Date(value + ':00+08:00').toISOString() : ''
-export async function coverFile(file: File): Promise<string> {
-  if (
-    !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
-    file.size > 1000000
-  )
-    throw new Error('请选择1MB以内的PNG/JPEG/WebP图片')
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result))
-    reader.onerror = () => reject(new Error('图片读取失败'))
-    reader.readAsDataURL(file)
-  })
-}
+export { coverFile } from './cover'
 export const dismissedPopup = (version: string) => {
   try {
     return sessionStorage.getItem('ec-popup:' + version) === 'closed'
