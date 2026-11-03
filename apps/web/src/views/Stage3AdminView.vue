@@ -183,7 +183,7 @@ async function run(work: () => Promise<void>) {
   }
 }
 async function load() {
-  await run(async () => {
+  return await run(async () => {
     if (props.kind === 'popups') {
       const result = await request<{
         items: PopupAnnouncement[]
@@ -272,7 +272,7 @@ function payload() {
   }
 }
 async function save() {
-  await run(async () => {
+  const saved = await run(async () => {
     const body = payload()
     const record =
       props.kind === 'popups'
@@ -310,9 +310,9 @@ async function save() {
       }
     }
   })
-  if (!message.value || message.value === '已保存') {
-    await load()
-    message.value = '已保存'
+  if (saved) {
+    const refreshed = await load()
+    message.value = refreshed ? '已保存' : '内容已保存，但列表刷新失败：' + message.value
   }
 }
 async function publishArticle(publish: boolean) {

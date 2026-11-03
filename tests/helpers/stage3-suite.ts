@@ -10,11 +10,13 @@ import type {
 } from '../../packages/shared/src/index'
 import type { MemberService } from '../../apps/functions/src/members/service'
 import type { Store } from '../../apps/functions/src/members/store'
+import { contentIdentitySuite } from './content-identity-suite'
 export async function stage3Suite(
   service: MemberService,
   store: Store,
   rootToken: string,
 ) {
+  await contentIdentitySuite(service, store, rootToken)
   const call = (
     token: string,
     method: string,

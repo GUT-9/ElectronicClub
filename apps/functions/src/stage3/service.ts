@@ -45,6 +45,22 @@ export class Stage3Service {
   private now() {
     return new Date(this.clock()).toISOString()
   }
+  private async content<T extends ClubEvent | ClubArticle>(
+    tx: Transaction,
+    collection: 'events' | 'articles',
+    id: string,
+  ): Promise<T | null> {
+    const value = await tx.get<T>(collection, id)
+    if (!value) return null
+    if (value.id !== id)
+      console.warn(JSON.stringify({
+        category: 'data', stage: 'content_read',
+        code: 'CONTENT_ID_MISMATCH', collection,
+      }))
+    // The lookup key is authoritative. A legacy/manual JSON edit must never
+    // redirect a subsequent mutation to another activity or article.
+    return { ...value, id }
+  }
   private can(ctx: Identity, p: string) {
     return ctx.super || ctx.permissions.includes(p)
   }
@@ -164,7 +180,7 @@ export class Stage3Service {
         p.expiresAt <= now
       )
         continue
-      const target = await tx.get<ClubEvent | ClubArticle>(
+      const target = await this.content<ClubEvent | ClubArticle>(tx,
         p.targetType === 'event' ? 'events' : 'articles',
         p.targetId,
       )
@@ -230,7 +246,7 @@ export class Stage3Service {
           kind === 'events' ? 'events' : kind === 'articles' ? 'articles' : ''
         ensure(collection, 404, 'NOT_FOUND', '接口不存在')
         if (id) {
-          const item = await tx.get<ClubEvent | ClubArticle>(collection, id)
+          const item = await this.content<ClubEvent | ClubArticle>(tx, collection, id)
           ensure(
             item?.status === 'published',
             404,
@@ -245,7 +261,7 @@ export class Stage3Service {
         const ids = collection === 'events' ? cat.events : cat.articles
         const items = (
           await Promise.all(
-            ids.map((id) => tx.get<ClubEvent | ClubArticle>(collection, id)),
+            ids.map((id) => this.content<ClubEvent | ClubArticle>(tx, collection, id)),
           )
         )
           .filter(
@@ -281,7 +297,7 @@ export class Stage3Service {
         if (!id && method === 'GET') {
           const all = (
             await Promise.all(
-              cat.events.map((id) => tx.get<ClubEvent>('events', id)),
+              cat.events.map((id) => this.content<ClubEvent>(tx, 'events', id)),
             )
           ).filter(
             (e): e is ClubEvent =>
@@ -357,7 +373,7 @@ export class Stage3Service {
             },
           }
         }
-        const event = await tx.get<ClubEvent>('events', id!)
+        const event = await this.content<ClubEvent>(tx, 'events', id!)
         ensure(
           event && event.status !== 'deleted',
           404,
@@ -833,7 +849,7 @@ export class Stage3Service {
             data: await this.page(
               (
                 await Promise.all(
-                  cat.articles.map((id) => tx.get<ClubArticle>('articles', id)),
+                  cat.articles.map((id) => this.content<ClubArticle>(tx, 'articles', id)),
                 )
               ).filter(
                 (v) =>
@@ -851,7 +867,7 @@ export class Stage3Service {
             ),
           }
         }
-        const previous = id ? await tx.get<ClubArticle>('articles', id) : null
+        const previous = id ? await this.content<ClubArticle>(tx, 'articles', id) : null
         if (id)
           ensure(
             previous && previous.status !== 'deleted',
@@ -954,7 +970,7 @@ export class Stage3Service {
         }
         if (method === 'POST') {
           const body = popupSchema.parse(input),
-            target = await tx.get<ClubEvent | ClubArticle>(
+            target = await this.content<ClubEvent | ClubArticle>(tx,
               body.targetType === 'event' ? 'events' : 'articles',
               body.targetId,
             )

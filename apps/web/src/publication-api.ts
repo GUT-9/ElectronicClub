@@ -16,10 +16,12 @@ export async function savePublication(
     'POST',
     data,
   )
+  if (id && saved.id !== id)
+    throw new Error('编辑接口返回了不同的记录ID，尚未确认原记录已更新。请勿重复新建；请更新云函数并检查记录主键与内容ID是否一致。')
   onSubmitted?.(saved)
   try {
     const persisted = await send<SavedPublication>(`/${kind}/${saved.id}`)
-    if (persisted.cover !== data.cover)
+    if (persisted.id !== saved.id || persisted.cover !== data.cover)
       throw new Error('服务器重新读取的封面与所选图片不一致')
   } catch (error) {
     throw new Error(

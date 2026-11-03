@@ -76,3 +76,12 @@ test('save verifies persisted cover and surfaces discarded images or failed read
     assert.deepEqual(calls, ['POST /events/test-id/update', 'GET /events/test-id'])
   }
 })
+
+test('an edit cannot silently switch to a different record returned by the server', async () => {
+  let selected = 'original-id'
+  const send: typeof request = async <T>() => ({ id: 'another-id', cover }) as T
+  await assert.rejects(savePublication('events', selected, { cover }, send, (saved) => {
+    selected = saved.id
+  }), /不同的记录ID/)
+  assert.equal(selected, 'original-id')
+})
