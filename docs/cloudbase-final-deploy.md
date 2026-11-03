@@ -63,7 +63,7 @@ node diagnose.js
 
 检查真实连接、事务begin/rollback与角色限制，成功只输出状态标记，不公开主机、用户名、SQL、成员或密码。此机制不是HTTP路由，也不能通过公网函数事件无条件调用。若无法建立安全终端/网络访问，应先解决该阻断，不要开放公开初始化接口。
 
-首次管理员身份由部署者设置 BOOTSTRAP_STUDENT_ID、BOOTSTRAP_NAME、BOOTSTRAP_NICKNAME；BOOTSTRAP_PASSWORD通过安全环境变量读取，至少12位含字母数字。学号允许4–24位ASCII字母数字并大写保留前导零。源码没有个人固定身份或默认超级管理员密码。
+首次管理员身份由部署者设置 BOOTSTRAP_STUDENT_ID、BOOTSTRAP_NAME、BOOTSTRAP_NICKNAME；BOOTSTRAP_PASSWORD通过安全环境变量读取，至少8位含字母数字。学号允许4–24位ASCII字母数字并大写保留前导零。源码没有个人固定身份或默认超级管理员密码。
 
 ```bash
 # SQL先由迁移所有者执行；此处使用受限API账号

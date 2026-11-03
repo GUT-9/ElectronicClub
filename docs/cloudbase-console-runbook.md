@@ -70,7 +70,7 @@ node bootstrap.js --initialize
 
 必须从函数所处网络或提供方明确等价的网络验证TCP。仅终端能连通并不证明函数可连通。diagnose检查真实事务和受限账号；连接URL中禁止sslmode绕过，非回环端点不允许PG_TLS=disable。
 
-初始化资料分别通过BOOTSTRAP_STUDENT_ID、BOOTSTRAP_NAME、BOOTSTRAP_NICKNAME安全输入；密码通过临时BOOTSTRAP_PASSWORD提供（至少12位含字母数字）。源码没有硬编码身份。完成后清理变量，不将密码留在公共函数持久配置。
+初始化资料分别通过BOOTSTRAP_STUDENT_ID、BOOTSTRAP_NAME、BOOTSTRAP_NICKNAME安全输入；密码通过临时BOOTSTRAP_PASSWORD提供（至少8位含字母数字）。源码没有硬编码身份。完成后清理变量，不将密码留在公共函数持久配置。
 
 ### 离线一次性初始化SQL（不需要生成端TCP）
 

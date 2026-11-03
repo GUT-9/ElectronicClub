@@ -57,7 +57,7 @@ node bootstrap.js --initialize
 
 diagnose实际调用数据库读取及原子提交RPC；成功会打印 `httpsRpc:true,transactionRoundtrip:true`，不打印Key/档案。失败不输出原始响应，以免泄密；HTTP401/403在服务日志对应RDB_HTTP_PERMISSION_DENIED，网络错误对应RDB_HTTP_UNREACHABLE。标准PostgREST错误中的缺少RPC对应RDB_RPC_NOT_INSTALLED、缺少表对应RDB_SCHEMA_NOT_INSTALLED；其他SQL/HTTP异常对应RDB_HTTP_FAILED。健康200、匿名me401不能替代此检查。
 
-bootstrap 支持字母学号、大写规范化、前导零和 nickname；密码至少12位含字母数字，仅保存scrypt哈希。首次初始化原子创建用户、凭据、学号映射、7个初始角色、权限、user_roles、system/control及审计。重复初始化安全退出；并发初始化只能成功一次。没有公开HTTP初始化接口。终端无法访问RPC时，仍可用包内 `offline-bootstrap.js --output=/secure/eclub-bootstrap-private.sql` 在本机生成带哈希的私有SQL，再由授权Editor整事务执行；该文件含个人信息/哈希，不要提交Git或交给不可信Agent。
+bootstrap 支持字母学号、大写规范化、前导零和 nickname；密码至少8位含字母数字，仅保存scrypt哈希。首次初始化原子创建用户、凭据、学号映射、7个初始角色、权限、user_roles、system/control及审计。重复初始化安全退出；并发初始化只能成功一次。没有公开HTTP初始化接口。终端无法访问RPC时，仍可用包内 `offline-bootstrap.js --output=/secure/eclub-bootstrap-private.sql` 在本机生成带哈希的私有SQL，再由授权Editor整事务执行；该文件含个人信息/哈希，不要提交Git或交给不可信Agent。
 
 ## 事务为何可靠
 

@@ -935,3 +935,39 @@ test('cross-site testing sets Secure/HttpOnly SameSite=None, preserves CSRF, res
     }
   }
 })
+
+test('eight-character passwords support bootstrap and password changes; shorter or single-category passwords fail', async () => {
+  const { passwordSchema } = await import('../apps/functions/src/members/model')
+  for (const password of ['Abcd1234', '1234abcd'])
+    assert.equal(passwordSchema.safeParse(password).success, true)
+  for (const password of ['Abc1234', '12345678', 'abcdefgh'])
+    assert.equal(passwordSchema.safeParse(password).success, false)
+  const service = new MemberService(new MemoryStore())
+  await service.bootstrap(
+    { studentId: '00eight1', name: 'Password test' },
+    'Abcd1234',
+  )
+  const login = await service.login(
+    { studentId: '00eight1', password: 'Abcd1234' },
+    'local',
+  )
+  assert.ok(login.token)
+  await service.execute(
+    login.token!,
+    'POST',
+    '/api/auth/password',
+    { oldPassword: 'Abcd1234', newPassword: 'Newp1234' },
+    {},
+  )
+  await assert.rejects(() =>
+    service.execute(login.token!, 'GET', '/api/auth/me', {}, {}),
+  )
+  assert.ok(
+    (
+      await service.login(
+        { studentId: '00eight1', password: 'Newp1234' },
+        'local',
+      )
+    ).token,
+  )
+})

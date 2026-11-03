@@ -37,7 +37,7 @@ async function submit() {
     <h1>
       {{ auth.member?.mustChangePassword ? '首次登录 · 修改密码' : '修改密码' }}
     </h1>
-    <p>新密码至少12位，包含字母和数字。修改后所有旧会话失效，请重新登录。</p>
+    <p>新密码至少8位，包含字母和数字。修改后所有旧会话失效，请重新登录。</p>
     <form class="member-form narrow-form" @submit.prevent="submit">
       <label for="old-password">原密码</label
       ><input
@@ -53,7 +53,7 @@ async function submit() {
         v-model="newPassword"
         type="password"
         autocomplete="new-password"
-        minlength="12"
+        minlength="8"
         maxlength="128"
         required
       /><label for="confirm-password">确认新密码</label
@@ -62,7 +62,7 @@ async function submit() {
         v-model="confirm"
         type="password"
         autocomplete="new-password"
-        minlength="12"
+        minlength="8"
         maxlength="128"
         required
       />

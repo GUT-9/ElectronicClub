@@ -89,11 +89,11 @@ export const profileSchema = patchFields
 export const editSchema = patchFields.partial().strict()
 export const passwordSchema = z
   .string()
-  .min(12)
+  .min(8)
   .max(128)
   .refine(
     (x) => /[a-zA-Z]/.test(x) && /\d/.test(x),
-    '密码至少12位且包含字母和数字',
+    '密码至少8位且包含字母和数字',
   )
 export const permissionDefinitions = [
   ['members.read', '成员查询', '成员'],

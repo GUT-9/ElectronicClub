@@ -24,7 +24,7 @@
 4. 生产请使用同站点自定义域名，例如前端 `https://club.example.edu`、后端 `https://api.example.edu`。默认 EdgeOne 与 CloudBase 的不同站点域名不满足 SameSite=Lax 会话设计。也可以配置可信的同源 `/api` 反向代理。不能只设置 CORS 就认为跨站 Cookie 一定可用。
 5. 会话为 256 位随机 opaque token，仅通过 `__Host-ec-session` Cookie 下发：Secure、HttpOnly、SameSite=Lax、Path=/，不设 Domain。数据库只保存 token 的 SHA-256。前端无 localStorage/sessionStorage token。
 6. 普通会话绝对有效期8小时、空闲30分钟；未改密会话15分钟。每次保护请求核对账号状态、撤销版本、强制改密及数据库角色权限；改角色、重置密码、禁用、删除、修改密码和撤销所有会话使相应旧会话失效。
-7. 改密前仅允许身份恢复、改密和登出；初始激活凭据7天后失效。新密码至少12位且包含字母和数字。初始密码是公开约定，导入后应通过受控渠道通知并核实实际成员，不能把该密码当作长期身份凭据。
+7. 改密前仅允许身份恢复、改密和登出；初始激活凭据7天后失效。新密码至少8位且包含字母和数字。初始密码是公开约定，导入后应通过受控渠道通知并核实实际成员，不能把该密码当作长期身份凭据。
 8. 写操作要求精确 Origin、`X-Requested-With: ElectronicClub` 和 JSON Content-Type，防止跨站表单提交。后端还独立执行全部鉴权与参数校验。
 9. 学号维度15分钟最多10次失败；成功后重置该学号失败计数。网关可信 IP 维度15分钟最多200次登录尝试；缺少可信 IP 时统一使用保守公共桶。不要将客户端可伪造的 X-Forwarded-For 直接当作可信 IP；应核对 HTTP 网关是否提供 `requestContext.sourceIp`，否则在网关增加源 IP 限流。
 
@@ -65,7 +65,7 @@ npm run bootstrap -w @electronic-club/functions -- --collections
 
 ### 安全创建首个超级管理员
 
-在受保护终端通过安全环境变量传入 `BOOTSTRAP_STUDENT_ID`、`BOOTSTRAP_NAME`、`BOOTSTRAP_PASSWORD`，可选 `BOOTSTRAP_NICKNAME` 设置昵称。学号支持字母数字并统一转为大写。密码由部署者自行生成，至少12位且包含字母数字；没有公开固定学号或默认管理员密码。不要将密码放入命令参数、脚本或提交文件；终端可用 `read -rs` 读取再 export。
+在受保护终端通过安全环境变量传入 `BOOTSTRAP_STUDENT_ID`、`BOOTSTRAP_NAME`、`BOOTSTRAP_PASSWORD`，可选 `BOOTSTRAP_NICKNAME` 设置昵称。学号支持字母数字并统一转为大写。密码由部署者自行生成，至少8位且包含字母数字；没有公开固定学号或默认管理员密码。不要将密码放入命令参数、脚本或提交文件；终端可用 `read -rs` 读取再 export。
 
 ```bash
 npm run bootstrap -w @electronic-club/functions -- --initialize
