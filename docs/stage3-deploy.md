@@ -1,5 +1,11 @@
 # 第三阶段部署：活动、报名签到、新闻与全站弹窗
 
+## 封面编辑兼容修复
+
+前端修改活动/文章改用 `POST /api/events/:id/update`、`POST /api/articles/:id/update`；后端仍保留原 PATCH 接口。新接口进入相同的鉴权、权限、参数验证和数据库事务，更新原记录，保留报名、签到和原活动地址。这样编辑与新建均通过 POST 传输 JSON，避免依赖网关的 PATCH 请求体透传。它是针对线上“新建能显示，编辑不生效”现象的兼容处理，不代表已经确认腾讯云网关是根因。
+
+本修复包含后端代码：**先上传本目录所对应的新 ZIP，再更新 EdgeOne 前端**。入口仍为 `index.main`，运行时仍兼容 Node18.15；不需要新增 SQL、重建活动、重置账号或调整数据库权限。前端仅在保存后的服务器回读与所选封面一致时提示成功。仍需在真实 CloudBase 上以原活动验证封面及报名关系。
+
 ## 发布状态与边界
 
 开发分支：`feat/stage3-events-content`。本阶段保留已正常登录的成员系统、Cookie会话、8位密码规则、动态RBAC、Excel导入和健康接口。用户已完成第二阶段管理员真实登录；本轮没有连接生产数据库、上传腾讯云函数、重建账号或执行DNS操作。
@@ -105,6 +111,7 @@ SQL仅增加权限定义，不给旧角色自动增加授权。现有超级管�
 | POST /api/events | 创建活动，events.create |
 | GET /api/events/:id | 管理详情，负责人或相关全局活动权限 |
 | PATCH /api/events/:id | 编辑活动，events.edit或该活动负责人；分配负责人另查events.edit |
+| POST /api/events/:id/update | 兼容网关的编辑入口，权限与PATCH相同，保留活动ID及报名签到 |
 | DELETE /api/events/:id | 软删除，events.delete |
 | GET /api/events/manager-lookup?studentId= | 分配负责人所需UID/昵称，events.edit；不返回完整档案 |
 | GET /api/events/:id/member-lookup?studentId= | 明确补签所需成员标识，活动签到管理范围 |
@@ -121,6 +128,7 @@ SQL仅增加权限定义，不给旧角色自动增加授权。现有超级管�
 | POST /api/articles | 创建草稿或文章，create；直接发布另查publish |
 | GET /api/articles/:id | 管理详情，编辑/发布/删除权限或创建者读取自己的草稿 |
 | PATCH /api/articles/:id | 部分更新，articles.edit；已发布内容另查publish |
+| POST /api/articles/:id/update | 兼容网关的文章编辑入口，权限与PATCH相同 |
 | POST /api/articles/:id/publish | publish布尔值，独立发布/撤回，articles.publish |
 | DELETE /api/articles/:id | 软删除，articles.delete |
 | GET /api/popups | 当前、待生效、历史和停用记录，announcements.popup.manage |

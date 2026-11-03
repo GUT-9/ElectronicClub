@@ -123,6 +123,19 @@ export async function stage3Suite(
   await assert.rejects(() =>
     call(users[0]!.token, 'PATCH', `${base}/${other.id}`, eventData),
   )
+  await assert.rejects(() =>
+    call(users[0]!.token, 'POST', `${base}/${other.id}/update`, { cover: '' }),
+  )
+  const updatedCover = 'data:image/jpeg;base64,/9j/' + 'A'.repeat(172032)
+  const updated = (await call(rootToken, 'POST', `${base}/${other.id}/update`, {
+    cover: updatedCover,
+  })).data as ClubEvent
+  assert.equal(updated.id, other.id)
+  assert.equal(updated.cover, updatedCover)
+  assert.equal(updated.title, other.title)
+  assert.deepEqual(updated.managerIds, other.managerIds)
+  const publicUpdated = (await call('', 'GET', `/api/public/events/${other.id}`)).data as ClubEvent
+  assert.equal(publicUpdated.cover, updatedCover)
   await assert.rejects(() => call(users[0]!.token, 'GET', '/api/members'))
   const closed = (
     await call(rootToken, 'POST', base, {

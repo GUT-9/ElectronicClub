@@ -207,6 +207,16 @@ export class Stage3Service {
     input: unknown,
     q: Record<string, string>,
   ): Promise<StageResult> {
+    // Some HTTP gateways do not forward PATCH bodies consistently. Keep PATCH
+    // clients compatible and route the POST update alias through exactly the
+    // same authentication, scope checks, validation and transaction below.
+    if (
+      method === 'POST' &&
+      /^\/api\/(events|articles)\/[^/]+\/update$/.test(path)
+    ) {
+      path = path.slice(0, -'/update'.length)
+      method = 'PATCH'
+    }
     const publicRead = method === 'GET' && path.startsWith('/api/public/')
     const work = async (
       tx: Transaction,

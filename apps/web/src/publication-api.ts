@@ -12,8 +12,8 @@ export async function savePublication(
   onSubmitted?: (saved: SavedPublication) => void,
 ): Promise<SavedPublication> {
   const saved = await send<SavedPublication>(
-    `/${kind}${id ? '/' + id : ''}`,
-    id ? 'PATCH' : 'POST',
+    `/${kind}${id ? '/' + id + '/update' : ''}`,
+    'POST',
     data,
   )
   onSubmitted?.(saved)

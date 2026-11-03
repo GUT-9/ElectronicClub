@@ -6,6 +6,8 @@ import type { request } from '../apps/web/src/member-api'
 import { MemberService } from '../apps/functions/src/members/service'
 import { MemoryStore } from '../apps/functions/src/members/memory-store'
 import type { ClubEvent } from '../packages/shared/src/index'
+import { createHandler } from '../apps/functions/src/index'
+import { sessionCookieConfig } from '../apps/functions/src/members/cookie'
 
 const cover = 'data:image/jpeg;base64,/9j/2Q=='
 test('editing a published event persists JPG cover to admin and public reads', async () => {
@@ -25,6 +27,36 @@ test('editing a published event persists JPG cover to admin and public reads', a
     assert.equal(((await call('GET', path)).data as ClubEvent).cover, cover)
   const list = (await call('GET', '/api/public/events')).data as { items: ClubEvent[] }
   assert.equal(list.items[0]!.cover, cover)
+  // Existing PATCH clients remain supported as well as POST gateway clients.
+  await call('PATCH', '/api/events/' + event.id, { cover: '' })
+  assert.equal(((await call('GET', '/api/events/' + event.id)).data as ClubEvent).cover, '')
+  const previousOrigin = process.env.ALLOWED_ORIGIN
+  process.env.ALLOWED_ORIGIN = 'https://cover-test.example'
+  try {
+    const handler = createHandler(() => service)
+    const httpEvent = {
+      path: '/api/events/' + event.id + '/update',
+      httpMethod: 'POST',
+      isBase64Encoded: true,
+      headers: {
+        origin: 'https://cover-test.example',
+        'content-type': 'application/json',
+        'x-requested-with': 'ElectronicClub',
+        cookie: `${sessionCookieConfig().name}=${token}`,
+      },
+      body: Buffer.from(JSON.stringify({ cover })).toString('base64'),
+    }
+    const response = await handler(httpEvent)
+    assert.equal(response.statusCode, 200, response.body)
+    assert.equal(JSON.parse(response.body).data.cover, cover)
+    assert.equal(JSON.parse(response.body).data.id, event.id)
+    assert.equal((await handler({ ...httpEvent, headers: { ...httpEvent.headers, cookie: '' } })).statusCode, 401)
+    assert.equal((await handler({ ...httpEvent, headers: { ...httpEvent.headers, origin: 'https://other.example' } })).statusCode, 403)
+    assert.equal((await call('GET', '/api/public/events')).data && ((await call('GET', '/api/public/events')).data as { items: ClubEvent[] }).items.length, 1)
+  } finally {
+    if (previousOrigin === undefined) delete process.env.ALLOWED_ORIGIN
+    else process.env.ALLOWED_ORIGIN = previousOrigin
+  }
 })
 
 test('save verifies persisted cover and surfaces discarded images or failed readback', async () => {
@@ -33,7 +65,7 @@ test('save verifies persisted cover and surfaces discarded images or failed read
     let submitted = ''
     const send: typeof request = async <T>(path: string, method = 'GET') => {
       calls.push(method + ' ' + path)
-      if (method === 'PATCH') return { id: 'test-id', cover } as T
+      if (method === 'POST') return { id: 'test-id', cover } as T
       if (failure === 'read-error') throw new Error('服务暂不可用')
       return { id: 'test-id', cover: '' } as T
     }
@@ -41,6 +73,6 @@ test('save verifies persisted cover and surfaces discarded images or failed read
       submitted = saved.id
     }), /封面保存未确认/)
     assert.equal(submitted, 'test-id')
-    assert.deepEqual(calls, ['PATCH /events/test-id', 'GET /events/test-id'])
+    assert.deepEqual(calls, ['POST /events/test-id/update', 'GET /events/test-id'])
   }
 })
