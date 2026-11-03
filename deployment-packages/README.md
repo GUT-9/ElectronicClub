@@ -1,15 +1,17 @@
-# 封面编辑兼容修复部署包
+# 记录ID一致性与封面保存修复部署包
 
-源码提交 `f3bedcf56731a1d3e3ce9abc424376b911deb895`。支持 `POST /api/events/:id/update` 与 `POST /api/articles/:id/update`，保留 PATCH、原活动ID、报名和签到关系。前端保存后重新读取封面确认。
+源码提交 `450891e28199b07b5d40840c6182a4b3dcdb2544`。修复旧JSON中的id与数据库主键不一致时，编辑写入另一条记录的问题；统一活动/文章读写主键，并保留报名和签到关联。前端检查编辑响应ID，提交未执行或列表刷新失败不再误报成功。
 
-下载 [electronicclub-api.zip](electronicclub-api.zip)（GitHub 文件页 Download raw file）。**先上传现有 electronicclub-api 云函数，再更新 EdgeOne 前端**。入口 `index.main`，兼容 Node.js18.15，不增加环境变量。已有第三阶段数据库无需执行新SQL、重新初始化或重建管理员。完整步骤见 [部署文档](../docs/stage3-deploy.md)。
+下载 [electronicclub-api.zip](electronicclub-api.zip)。先上传现有 `electronicclub-api`，入口 `index.main`，再更新 EdgeOne 前端。兼容 Node18.15，无新增环境变量，无DDL迁移，不重新初始化成员或管理员。保留POST编辑兼容入口及PATCH。步骤见 [部署说明](../docs/stage3-deploy.md)。
 
-`npm run check`：42项全部通过，含真实本地PostgreSQL/RPC、约126KB封面编辑、权限及CSRF。实际Node18.15最终部署入口配合本地受限PG账户通过登录、POST编辑、封面持久化和公开读取；浏览器以125,336字节真实JPEG验证编辑、详情及列表显示和错误提示。以上均为本地验证，不代表腾讯云已部署。未执行CloudBase上传或生产数据库操作。
+[只读诊断SQL](../cloudbase/sql/diagnose-content-identity.sql)可检查实际生产数据；仅返回主键/id一致性、封面字符数、更新时间及目录引用。已在真实本地PG验证会检测错配且不修改数据。是否为生产根因仍待真实查询，不能将构造数据复现等同于线上确诊。
 
-ZIP根目录含index.js、package.json、node_modules、diagnose.js、bootstrap.js及SQL/部署文档。未注入真实密码或密钥。
+`npm run check`：43项全部通过（0跳过），包含真实本地PG/RPC的错配ID、原记录更新、另一记录不被覆盖及报名关联测试。浏览器使用用户原始129,028字节JPEG通过错配记录编辑、公开显示、busy跳过及列表刷新失败提示回归。Node18.15最终打包入口加载、健康200和未登录401通过。生产依赖10项moderate，0high/critical。未执行CloudBase上传或生产数据修改。
 
-大小：12,140,669字节。SHA-256：
+ZIP包含完整运行依赖和部署资源，不含实际密码或密钥。大小：12,142,390字节。
+
+SHA-256：
 
 ```
-d77a26cc8d3b84b33315d43c5be3c59a15b7c5017b6d7cd0b3dca4e6dd601ecd
+73ccd05e996ff0766ea5def39fc58599ffd3e4ef5d4e552c819751fd0c28d642
 ```
