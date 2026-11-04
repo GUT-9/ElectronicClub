@@ -1,35 +1,24 @@
-# 角色与权限工作台更新 · 完整 CloudBase 部署包
+# 完整 CloudBase 部署包 · 正文图片与管理界面更新
 
-源码提交 `9d8fc71`。本包保留此前全部 API，并增加角色成员名单、权限拥有者查询和事务内增量角色分配。
+源码提交 `5dc0c238f08b5ec57fe3a06d5c68a0fc5d557f15`。保留成员、RBAC、活动报名签到、新闻公告、弹窗、论坛及角色成员管理全部 API，新增通用分片图片上传与受控正文图片引用，统一权限分组和管理界面。
 
-**本次更新顺序：**在已经执行 009 的现有数据库执行 [010-role-access.sql](../cloudbase/sql/010-role-access.sql)，上传本 ZIP 替换原云函数，再更新 EdgeOne 前端。入口 `index.main`，环境变量保持不变；不重新初始化账号或数据库。完整说明与回滚见 [角色权限部署文档](../docs/access-workspace-deploy.md)。
+下载 [electronicclub-api.zip](electronicclub-api.zip)（GitHub 文件页 Download raw file），校验 [SHA256](electronicclub-api.zip.sha256)。ZIP 根目录直接包含 `index.js`、`package.json`、`package-lock.json`、全部 `node_modules` 运行依赖、私有维护入口、SQL 和部署文档。入口 **index.main**。没有注入真实密码、密钥、生产测试账号或测试图片。
 
-`npm ci`、`npm run check` 通过，51 项测试全部通过，无跳过；真实本地 PostgreSQL/RPC 和桌面/手机浏览器检查通过。最终入口已用 Node18.15 加载。生产依赖原有 10 moderate，0 high/critical。本次没有生产云端部署权限，未执行生产 SQL 或上传函数。
+**已有 009/010 的环境升级顺序：**先执行 [011-content-media.sql](../cloudbase/sql/011-content-media.sql)，再上传本 ZIP 替换原 `electronicclub-api`，最后更新 EdgeOne main 前端。保留原环境变量、网关与 Cookie 设置。不要重新初始化数据库、成员或管理员。
 
-ZIP 根目录直接含入口、package.json、package-lock.json、全部运行依赖、SQL 和部署文档。
+- [本次部署、图片 API、预算/清理与回滚](../docs/content-media-deploy.md)
+- [本次源码修改文件清单](../docs/content-media-files.md)
+- [可选只读核对 SQL](../cloudbase/sql/011-content-media-verify.sql)
+- 前置功能：[角色成员管理](../docs/access-workspace-deploy.md) · [论坛](../docs/stage4-deploy.md) · [活动新闻弹窗](../docs/stage3-deploy.md)
 
-大小：12209011 字节。SHA-256：
+新正文/封面允许 3MiB 原图，浏览器自动重编码至50KiB以内，分片上传每片24KiB；每篇正文最多12张。旧图片与原 API 保留。不增加运行依赖或付费对象存储，沿用原32MiB共享图片预算。
 
-```
-bb621d053df737925b68f62c41428e41b2ac6ee6b6c13c769055a88d70d7070c
-```
+验证：`npm ci` 成功，`npm run check` 通过，53项测试全部通过、0跳过，生产构建通过；真实本地 PostgreSQL/RPC 验证迁移可重试、旧业务数据保持、私有授权、并发预算、图片完整性、越权及公开/隐藏控制。浏览器验证活动/新闻/帖子正文插图保存刷新、游客显示、桌面/手机界面。最终完整包使用实际 Node18.15 的 `index.main` 通过三分片上传、发布/隐藏、二进制图片和私有清理。**未执行生产 SQL 或上传 CloudBase 函数。**
 
----
+`npm audit --omit=dev` 仍有原有10项 moderate，0 high/critical。固定50KiB预算下复杂图可能需要缩小分辨率；细密图建议拆分局部。
 
-# 第四阶段电子社区 · 完整CloudBase部署包
-
-源码提交 `8f0a9d9825e3dcc574b54f13d88cf9142851cafd`。论坛版块、帖子/附图、评论回复、点赞收藏、通知举报和动态权限管理已实现，保留原成员、活动、签到、文章及弹窗API。
-
-直接下载 [electronicclub-api.zip](electronicclub-api.zip)（GitHub文件页Download raw file）。ZIP根目录含index.js、package.json、package-lock.json、node_modules完整运行依赖、diagnose/bootstrap及私有forum-maintenance.js、全部SQL和部署文档。入口 **index.main**，已使用实际 **Node18.15** 验证。没有注入真实密码、密钥、生产测试账号或测试帖子。
-
-**部署顺序：**先在已有第三阶段数据库执行 [009-stage4-forum.sql](../cloudbase/sql/009-stage4-forum.sql) 和 [只读核对SQL](../cloudbase/sql/verify-stage4-forum.sql)，再上传本ZIP到现有electronicclub-api，最后更新EdgeOne前端。不要重新初始化数据库、重建管理员或修改密码。完整环境、全部新增API和回滚见 [第四阶段部署文档](../docs/stage4-deploy.md)，[修改文件清单](../docs/stage4-files.md)。
-
-验证：npm ci成功；npm run check包含ESLint、TypeScript、50项全部通过的测试（真实本地PG/RPC，0跳过）及生产构建。真实无CREATEROLE安装、迁移重试和旧数据摘要保持不变。浏览器375/430/1440/1920通过成员/管理流程及原JPG、PNG/WebP上传。最终Node18.15部署入口通过本地身份桥接/真实受限PG的登录、首次改密、论坛写读、图片二进制及私有清理。**不是腾讯云部署成功证明；本交付未执行生产SQL或云函数上传。**
-
-生产依赖仍有10项moderate、0high/critical，未新增运行依赖。Node18生命周期、默认域名生产限制、真实云Cookie/二进制网关及免费配额仍需验收。图片默认32MiB编码文本预算可控，不额外开通付费服务。
-
-大小：12,198,941字节。SHA-256：
+大小：12,227,562 字节。SHA-256：
 
 ```
-433b82e15283a90833aca92691e8981e8af364a8d72957ae1040c56137041d08
+c334f976f3e211dbe7d42f631c83eec2fd19990a1c891543f4b3ebdcf214b27c
 ```
