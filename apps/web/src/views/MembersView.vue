@@ -18,20 +18,23 @@ const filters = reactive({
   page: 1,
   pageSize: 20,
 })
+let generation = 0
 async function load() {
+  const seq = ++generation
   busy.value = true
   error.value = ''
   try {
-    data.value = await request<Page<Member>>(
+    const result = await request<Page<Member>>(
       '/members?' +
         new URLSearchParams(
           Object.entries(filters).map(([k, v]) => [k, String(v)]),
         ),
     )
+    if (seq === generation) data.value = result
   } catch (e) {
-    error.value = (e as Error).message
+    if (seq === generation) error.value = (e as Error).message
   } finally {
-    busy.value = false
+    if (seq === generation) busy.value = false
   }
 }
 async function search() {

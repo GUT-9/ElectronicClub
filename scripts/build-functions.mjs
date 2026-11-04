@@ -65,3 +65,4 @@ await copyFile('../../docs/stage3-deploy.md', 'deploy/DEPLOY-STAGE3.md')
 
 await copyFile('../../docs/stage4-deploy.md', 'deploy/DEPLOY-STAGE4.md')
 await copyFile('../../docs/access-workspace-deploy.md', 'deploy/DEPLOY-ACCESS.md')
+await copyFile('../../docs/content-media-deploy.md', 'deploy/DEPLOY-MEDIA.md')

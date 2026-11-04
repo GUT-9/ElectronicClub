@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {imageSource} from '../media'
 import { onMounted, onBeforeUnmount, nextTick, ref } from 'vue'
 import type { PopupAnnouncement } from '@electronic-club/shared'
 import { request } from '../member-api'
@@ -75,7 +76,7 @@ function close() {
           关闭 ×
         </button>
         <p class="eyebrow">CLUB NOTICE</p>
-        <img v-if="popup.image" :src="popup.image" alt="公告图片" />
+        <img v-if="popup.image" :src="imageSource(popup.image)" alt="公告图片" />
         <h2 id="popup-title">{{ popup.title }}</h2>
         <p>{{ popup.summary }}</p>
         <RouterLink

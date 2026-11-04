@@ -70,6 +70,17 @@ async function save() {
       creating.value ? 'POST' : 'PATCH',
       payload,
     )
+    if (
+      !creating.value &&
+      result.uid === auth.member?.uid &&
+      payload.studentId !== auth.member.studentId
+    ) {
+      auth.clear()
+      await router.push('/login')
+      return
+    }
+    if (!creating.value && result.uid === auth.member?.uid)
+      await auth.restore(true)
     if (creating.value) await router.push(`/admin/members/${result.uid}`)
     await load()
     message.value = '已保存'
@@ -83,6 +94,11 @@ async function operation(action: string, method: string, data?: unknown) {
       method,
       data,
     )
+    if (member.value?.uid === auth.member?.uid) {
+      auth.clear()
+      await router.push('/login')
+      return
+    }
     await load()
     message.value = '操作已完成；相关旧会话已撤销'
   })
@@ -111,7 +127,11 @@ onMounted(() => act(load))
   <p class="eyebrow">MEMBER IDENTITY</p>
   <h1>{{ creating ? '创建成员' : '成员详情与管理' }}</h1>
   <p v-if="member">
-    UID：{{ member.uid }} · {{ member.status }} ·
+    UID：{{ member.uid }} ·
+    {{
+      { active: '正常', disabled: '已禁用', deleted: '已删除' }[member.status]
+    }}
+    ·
     {{ member.mustChangePassword ? '待首次改密' : '已激活' }}
   </p>
   <p v-if="message" role="status" class="operation-message">{{ message }}</p>

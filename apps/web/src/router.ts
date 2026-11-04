@@ -141,7 +141,7 @@ export const router = createRouter({
         {
           path: 'permissions',
           component: () => import('./views/RolesView.vue'),
-          meta: { title: '权限配置', permission: 'roles.read' },
+          meta: { title: '权限查询', permission: 'roles.read' },
         },
         {
           path: 'audit',

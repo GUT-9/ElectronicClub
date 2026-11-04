@@ -8,7 +8,7 @@ export async function changeImageStorage(tx: Transaction, delta: number) {
     Number.isSafeInteger(budget) && budget >= 1024 && budget <= 536870912,
     503,
     'FORUM_STORAGE_CONFIG',
-    '社区图片预算配置无效',
+    '图片存储预算配置无效',
   )
   const state = (await tx.get<{ bytes: number }>(
     'system',
@@ -18,7 +18,7 @@ export async function changeImageStorage(tx: Transaction, delta: number) {
     delta <= 0 || state.bytes + delta <= budget,
     409,
     'FORUM_STORAGE_BUDGET',
-    '社区图片空间已达预设预算，请联系管理员整理',
+    '图片空间已达预设预算，请联系管理员整理',
   )
   await tx.set('system', IMAGE_STORAGE_KEY, {
     bytes: Math.max(0, state.bytes + delta),

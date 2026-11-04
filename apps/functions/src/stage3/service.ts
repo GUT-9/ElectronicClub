@@ -1,3 +1,4 @@
+import { syncMedia, references } from '../media/model'
 import { studentIdKey } from '../members/crypto'
 import {
   randomUUID,
@@ -54,10 +55,14 @@ export class Stage3Service {
     const value = await tx.get<T>(collection, id)
     if (!value) return null
     if (value.id !== id)
-      console.warn(JSON.stringify({
-        category: 'data', stage: 'content_read',
-        code: 'CONTENT_ID_MISMATCH', collection,
-      }))
+      console.warn(
+        JSON.stringify({
+          category: 'data',
+          stage: 'content_read',
+          code: 'CONTENT_ID_MISMATCH',
+          collection,
+        }),
+      )
     // The lookup key is authoritative. A legacy/manual JSON edit must never
     // redirect a subsequent mutation to another activity or article.
     return { ...value, id }
@@ -181,7 +186,8 @@ export class Stage3Service {
         p.expiresAt <= now
       )
         continue
-      const target = await this.content<ClubEvent | ClubArticle>(tx,
+      const target = await this.content<ClubEvent | ClubArticle>(
+        tx,
         p.targetType === 'event' ? 'events' : 'articles',
         p.targetId,
       )
@@ -247,7 +253,11 @@ export class Stage3Service {
           kind === 'events' ? 'events' : kind === 'articles' ? 'articles' : ''
         ensure(collection, 404, 'NOT_FOUND', '接口不存在')
         if (id) {
-          const item = await this.content<ClubEvent | ClubArticle>(tx, collection, id)
+          const item = await this.content<ClubEvent | ClubArticle>(
+            tx,
+            collection,
+            id,
+          )
           ensure(
             item?.status === 'published',
             404,
@@ -262,7 +272,9 @@ export class Stage3Service {
         const ids = collection === 'events' ? cat.events : cat.articles
         const items = (
           await Promise.all(
-            ids.map((id) => this.content<ClubEvent | ClubArticle>(tx, collection, id)),
+            ids.map((id) =>
+              this.content<ClubEvent | ClubArticle>(tx, collection, id),
+            ),
           )
         )
           .filter(
@@ -338,6 +350,13 @@ export class Stage3Service {
           }
           if (!event.managerIds.includes(ctx.member.uid))
             event.managerIds.push(ctx.member.uid)
+          await syncMedia(
+            tx,
+            ctx,
+            'events',
+            event.id,
+            references(event.content, event.cover),
+          )
           await tx.set('events', event.id, event)
           for (const uid of event.managerIds)
             await tx.set('event_managers', `${event.id}:${uid}`, {
@@ -435,6 +454,14 @@ export class Stage3Service {
               (data.status === 'published' ? this.now() : null),
             updatedAt: this.now(),
           }
+          await syncMedia(
+            tx,
+            ctx,
+            'events',
+            event.id,
+            references(next.content, next.cover),
+            references(event.content, event.cover),
+          )
           await tx.set('events', event.id, next)
           await this.audit(tx, ctx, 'events.edit', event.id)
           return { data: next }
@@ -850,7 +877,9 @@ export class Stage3Service {
             data: await this.page(
               (
                 await Promise.all(
-                  cat.articles.map((id) => this.content<ClubArticle>(tx, 'articles', id)),
+                  cat.articles.map((id) =>
+                    this.content<ClubArticle>(tx, 'articles', id),
+                  ),
                 )
               ).filter(
                 (v) =>
@@ -868,7 +897,9 @@ export class Stage3Service {
             ),
           }
         }
-        const previous = id ? await this.content<ClubArticle>(tx, 'articles', id) : null
+        const previous = id
+          ? await this.content<ClubArticle>(tx, 'articles', id)
+          : null
         if (id)
           ensure(
             previous && previous.status !== 'deleted',
@@ -943,6 +974,14 @@ export class Stage3Service {
             createdAt: previous?.createdAt ?? this.now(),
             updatedAt: this.now(),
           }
+          await syncMedia(
+            tx,
+            ctx,
+            'articles',
+            article.id,
+            references(article.content, article.cover),
+            references(previous?.content, previous?.cover),
+          )
           await tx.set('articles', article.id, article)
           if (!previous) {
             cat.articles.push(article.id)
@@ -971,7 +1010,8 @@ export class Stage3Service {
         }
         if (method === 'POST') {
           const body = popupSchema.parse(input),
-            target = await this.content<ClubEvent | ClubArticle>(tx,
+            target = await this.content<ClubEvent | ClubArticle>(
+              tx,
               body.targetType === 'event' ? 'events' : 'articles',
               body.targetId,
             )
@@ -992,6 +1032,15 @@ export class Stage3Service {
           }
           if (item.startsAt <= this.now()) await this.retireDue(tx, cat)
           cat.popups.push(item.id)
+          await syncMedia(
+            tx,
+            ctx,
+            'popup_announcements',
+            item.id,
+            references('', item.image),
+            [],
+            references('', target.cover),
+          )
           await tx.set('popup_announcements', item.id, item)
           await tx.set('system', 'stage3_catalog', cat)
           await this.popup(tx)

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import {imageSource} from '../media'
 import { ref, watch } from 'vue'
 import type { ClubEvent, ClubArticle, Page } from '@electronic-club/shared'
 import { request } from '../member-api'
@@ -69,7 +70,7 @@ function turn(n: number) {
     <p v-else-if="loading">正在加载…</p>
     <p v-else-if="!rows.length" class="admin-empty">暂无已发布内容。</p>
     <article v-for="row in rows" :key="row.id" class="publication-row">
-      <img v-if="row.cover" :src="row.cover" alt="封面" loading="lazy" />
+      <img v-if="row.cover" :src="imageSource(row.cover)" alt="封面" loading="lazy" />
       <div>
         <p class="eyebrow">
           {{ 'pinned' in row && row.pinned ? '置顶 · ' : ''

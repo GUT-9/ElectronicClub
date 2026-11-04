@@ -2,6 +2,10 @@
 import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import type { Role, Permission } from '@electronic-club/shared'
+import {
+  permissionGroup,
+  PERMISSION_GROUP_ORDER,
+} from '@electronic-club/shared'
 import { request, allRoles } from '../member-api'
 import { useAuthStore } from '../stores/auth'
 import AccessMembers from '../components/AccessMembers.vue'
@@ -38,7 +42,9 @@ const visiblePermissions = computed(() =>
   ),
 )
 const groups = computed(() => [
-  ...new Set(visiblePermissions.value.map((p) => p.group)),
+  ...PERMISSION_GROUP_ORDER.filter((g) =>
+    visiblePermissions.value.some((p) => p.group === g),
+  ),
 ])
 const visibleRoles = computed(() =>
   roles.value.filter((r) =>
@@ -90,7 +96,9 @@ function newRole() {
 }
 async function load() {
   roles.value = await allRoles()
-  permissions.value = await request<Permission[]>('/permissions')
+  permissions.value = (await request<Permission[]>('/permissions')).map(
+    (p) => ({ ...p, group: permissionGroup(p.id) }),
+  )
 }
 async function action(fn: () => Promise<void>) {
   busy.value = true

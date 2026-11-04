@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { AuditLog, Page } from '@electronic-club/shared'
+import {beijing} from '../stage3'
 import { request } from '../member-api'
 const page = ref(1),
   data = ref<Page<AuditLog> | null>(null),
@@ -41,7 +42,7 @@ async function changePage(delta: number) {
       </thead>
       <tbody>
         <tr v-for="log in data.items" :key="log.id">
-          <td>{{ log.createdAt }}</td>
+          <td>{{ beijing(log.createdAt) }}</td>
           <td>{{ log.actor }}</td>
           <td>{{ log.action }}</td>
           <td>{{ log.target }}</td>

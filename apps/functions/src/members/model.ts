@@ -1,3 +1,4 @@
+import { permissionGroup } from '@electronic-club/shared'
 import {
   isValidStudentId,
   normalizeStudentId,
@@ -140,7 +141,7 @@ export const permissionDefinitions = [
 ].map(([id, name, group]) => ({
   id: id!,
   name: name!,
-  group: group!,
+  group: permissionGroup(id!),
   implemented: group !== '后续业务',
 }))
 export const roleSchema = z

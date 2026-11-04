@@ -72,7 +72,7 @@ export function createHandler(resolveService: () => MemberService) {
     }
     // Unknown public routes preserve 404 without forcing database initialization.
     if (
-      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups|forum)(?:\/|$)/.test(
+      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups|forum|media)(?:\/|$)/.test(
         path,
       )
     )
@@ -98,8 +98,15 @@ export function createHandler(resolveService: () => MemberService) {
         : (event.body ?? '')
       if (Buffer.byteLength(raw) > 3_100_000)
         throw new ApiError(413, 'BODY_TOO_LARGE', '请求体过大')
-      if (path.startsWith('/api/forum/') && Buffer.byteLength(raw) > 65536)
-        throw new ApiError(413, 'BODY_TOO_LARGE', '社区请求超过64KB，请压缩图片或缩短正文')
+      if (
+        /^\/api\/(forum|media)(?:\/|$)/.test(path) &&
+        Buffer.byteLength(raw) > 65536
+      )
+        throw new ApiError(
+          413,
+          'BODY_TOO_LARGE',
+          '内容请求超过64KB，请分片上传图片或缩短正文',
+        )
       let input: unknown = {}
       if (raw) {
         try {
@@ -118,7 +125,12 @@ export function createHandler(resolveService: () => MemberService) {
       if (
         !token &&
         !(path === '/api/auth/login' && method === 'POST') &&
-        !(method === 'GET' && (path.startsWith('/api/public/') || /^\/api\/forum\/(boards|posts|images)(?:\/|$)/.test(path)))
+        !(
+          method === 'GET' &&
+          (path.startsWith('/api/media/') ||
+            path.startsWith('/api/public/') ||
+            /^\/api\/forum\/(boards|posts|images)(?:\/|$)/.test(path))
+        )
       )
         throw new ApiError(401, 'UNAUTHENTICATED', '请先登录')
       const service = resolveService()
@@ -240,7 +252,12 @@ export function createHandler(resolveService: () => MemberService) {
       if (result.binary && result.contentType?.startsWith('image/')) {
         headers['Content-Type'] = result.contentType
         headers['Content-Disposition'] = 'inline'
-        return { statusCode: 200, headers, body: result.binary.toString('base64'), isBase64Encoded: true }
+        return {
+          statusCode: 200,
+          headers,
+          body: result.binary.toString('base64'),
+          isBase64Encoded: true,
+        }
       }
       if (result.binary) {
         headers['Content-Type'] =

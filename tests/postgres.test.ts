@@ -668,6 +668,7 @@ test(
             'SELECT public.ec_list($1,$2,$3,$4) AS value',
             [args.p_collection, args.p_filter, args.p_offset, args.p_limit],
           ],
+          ec_media_expired: ['SELECT public.ec_media_expired($1,$2) AS value',[args.p_before,args.p_limit]],
           ec_access_members: ['SELECT public.ec_access_members($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_forum_list: ['SELECT public.ec_forum_list($1,$2,$3,$4) AS value',[args.p_collection,args.p_filter,args.p_offset,args.p_limit]],
           ec_commit: [
@@ -675,6 +676,7 @@ test(
             [JSON.stringify(args.p_reads), JSON.stringify(args.p_writes)],
           ],
         }
+        if(name==='ec_commit' && JSON.stringify(args.p_writes).includes('media_chunks')) assert.ok(Buffer.byteLength(JSON.stringify(args))<65536,'media SQL RPC must remain below 64KiB')
         const call = calls[name]!
         return (await asRole('service_role', call[0], call[1])).rows[0].value
       })
@@ -768,6 +770,19 @@ test(
       const accessFixture=await accessSuite(service,store,login.token!)
       const accessFilter={roleId:accessFixture.roleId,status:'all'}
       assert.deepEqual(await new PgStore(owner).list('access_members',accessFilter,{offset:0,limit:20}),await store.list('access_members',accessFilter,{offset:0,limit:20}))
+      const mediaBefore=await snapshot()
+      const mediaSql=await readFile('cloudbase/sql/011-content-media.sql','utf8')
+      await owner.query(mediaSql)
+      await owner.query(mediaSql)
+      assert.deepEqual(await snapshot(),mediaBefore,'media migration must preserve existing content, accounts and roles')
+      for(const role of ['anon','authenticated'] as const){
+        await assert.rejects(()=>asRole(role,'SELECT data FROM electronicclub.media_images'),(e:unknown)=>(e as {code:string}).code==='42501')
+        await assert.rejects(()=>asRole(role,"SELECT public.ec_media_expired('2030-01-01T00:00:00Z',20)"),(e:unknown)=>(e as {code:string}).code==='42501')
+      }
+      const {mediaSuite}=await import('./helpers/media-suite')
+      await mediaSuite(service,store,login.token!)
+      const cleanupFilter={before:'2000-01-01T00:00:00.000Z'}
+      assert.deepEqual(await store.list('media_expired',cleanupFilter,{offset:0,limit:20}),await new PgStore(owner).list('media_expired',cleanupFilter,{offset:0,limit:20}))
       const {forumSuite}=await import('./helpers/forum-suite')
       let forumNow=Date.now()
       await forumSuite(new MemberService(store,()=>forumNow),store,login.token!,ms=>forumNow+=ms)

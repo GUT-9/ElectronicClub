@@ -2083,3 +2083,18 @@ button:disabled {
 @media(max-width:900px){.forum-workspace{grid-template-columns:1fr;gap:25px}.forum-sidebar{position:static;border-right:0;border-bottom:1px solid var(--line);padding:0 0 20px;display:flex;gap:8px;flex-wrap:wrap}.forum-sidebar h2{width:100%;margin:0 0 5px}.forum-sidebar>button{width:auto;border-left:0;border-bottom:2px solid transparent;padding:8px;font-size:13px}.forum-sidebar>button.selected{border-bottom-color:var(--blue)}.forum-sidebar>a{margin:8px 0;width:100%}.forum-sidebar>p{margin:0;font-size:12px}}
 @media(max-width:600px){.forum-feed-toolbar{flex-wrap:wrap}.forum-feed-toolbar form{flex-basis:100%}.forum-sort{gap:18px}.forum-post-row{gap:12px;padding:22px 0}.forum-reply-count{flex-basis:28px}.forum-reply-count strong{font-size:18px}.forum-post-main h2{font-size:18px}.forum-thread-actions>span{width:100%}.forum-thread-header{margin-top:25px}.forum-editor-images figure{max-width:100%}.forum-editor-images img{height:auto;max-height:250px}.forum-pagination{font-size:12px}.forum-thread .member-form,.forum-editor .member-form{width:100%}.forum-report-dialog{padding:20px}}
 .forum-comment-reply{padding-left:20px;border-left:2px solid #dce8f8;margin-left:12px}
+
+/* Consistent management controls and readable empty states. */
+.admin-content .button,.admin-content .plain-button,.admin-content .publication-tools button{border-radius:6px}
+.admin-content .member-form>label{line-height:1.7}
+.admin-content .member-form>label>input,.admin-content .member-form>label>select,.admin-content .member-form>label>textarea{border-radius:6px}
+.admin-content .admin-table-wrap,.admin-content .table-scroll{border:1px solid var(--line);border-radius:8px;background:#fff;overflow:auto}
+.admin-content .admin-table th,.admin-content .data-table th{background:#f3f6fb;font-weight:600;color:#526c89;white-space:nowrap}
+.admin-content .admin-table td,.admin-content .data-table td{vertical-align:middle;overflow-wrap:anywhere}
+.admin-content .admin-table tbody tr:hover,.admin-content .data-table tbody tr:hover{background:#f8faff}
+.admin-content .admin-table .text-link{margin-right:12px;white-space:nowrap}
+.admin-content .content-editor{margin:12px 0 24px}
+.admin-content .operation-message{border-radius:6px;line-height:1.8}
+.admin-content .stage3-editor>h2{border-bottom:1px solid var(--line);padding-bottom:14px;font-size:23px}
+.admin-content .publication-tools{gap:10px}
+@media(max-width:600px){.admin-content .publication-tools input{min-width:0;flex:1 1 140px}.admin-content .publication-tools button{white-space:nowrap}.admin-content .stage3-editor{margin-top:24px}}

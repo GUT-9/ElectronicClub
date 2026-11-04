@@ -1,3 +1,5 @@
+import { MediaService } from '../media/service'
+import { permissionGroup } from '@electronic-club/shared'
 import { ForumService } from '../forum/service'
 import { Stage3Service } from '../stage3/service'
 import { randomUUID } from 'node:crypto'
@@ -466,6 +468,12 @@ export class MemberService {
     input: unknown,
     query: Record<string, string>,
   ): Promise<Result> {
+    if (/^\/api\/media(?:\/|$)/.test(path))
+      return new MediaService(
+        this.store,
+        (token, fn) => this.secure(token, fn),
+        this.clock,
+      ).execute(token, method, path, input)
     if (/^\/api\/forum(?:\/|$)/.test(path))
       return new ForumService(
         this.store,
@@ -935,7 +943,7 @@ export class MemberService {
                 {},
                 { offset: 0, limit: 100 },
               )
-            ).items,
+            ).items.map((p) => ({ ...p, group: permissionGroup(p.id) })),
           }
         }
         if (path === '/api/roles' && method === 'GET') {

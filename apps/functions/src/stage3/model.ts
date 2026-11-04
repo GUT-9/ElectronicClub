@@ -1,3 +1,4 @@
+import { mediaReference } from '@electronic-club/shared'
 import { z } from 'zod'
 const text = z.string().trim()
 export const image = z
@@ -6,6 +7,7 @@ export const image = z
   .refine(
     (v) =>
       !v ||
+      !!mediaReference(v) ||
       /^https:\/\/[^\s]+$/i.test(v) ||
       /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v),
     '图片须为HTTPS地址或PNG/JPEG/WebP图片',

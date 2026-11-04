@@ -4,16 +4,16 @@
 
 当前代码包含成员账号/强制改密/Excel导入/动态RBAC，以及活动报名签到、新闻公告、全站弹窗和第四阶段电子社区。论坛支持版块、本人发帖与附图、评论回复、点赞收藏、站内通知、举报，以及按权限配置的审核/置顶/加精/锁帖/限制。采用真实CloudBase PostgreSQL HTTPS RPC，可选原生pg，不使用生产内存回退。
 
-**第四阶段升级顺序：先执行 [009-stage4-forum.sql](cloudbase/sql/009-stage4-forum.sql)，再上传完整云函数ZIP，最后更新EdgeOne前端。不要重新初始化数据库或管理员。**
+**最新升级顺序：已有 009/010 的数据库先执行 [011-content-media.sql](cloudbase/sql/011-content-media.sql)，再上传最新完整云函数 ZIP，最后更新 EdgeOne 前端。不要重新初始化数据库或管理员。**
 
-- [第四阶段部署、所有新增API及回滚](docs/stage4-deploy.md)
-- [迁移后的只读核对SQL](cloudbase/sql/verify-stage4-forum.sql)
-- [完整云函数ZIP及SHA256](deployment-packages/README.md)
-- [成员系统部署](docs/member-system.md) · [第三阶段功能与部署](docs/stage3-deploy.md)
+- [正文图片、权限分组和界面优化部署说明](docs/content-media-deploy.md)
+- [角色成员与有效权限管理](docs/access-workspace-deploy.md)
+- [完整云函数 ZIP 及 SHA256](deployment-packages/README.md)
+- [第四阶段论坛部署与 API](docs/stage4-deploy.md) · [第三阶段部署](docs/stage3-deploy.md) · [成员系统部署](docs/member-system.md)
 
-论坛图片沿用现有PG：单张原文件1MB内、自动压缩到32KiB，分次上传后帖子只传图片ID；前后端检查64KiB请求预算，避免之前已确认的413。无新增付费存储，全局图片编码文本预算默认32MiB，达到上限拒绝新图，可通过私有维护命令清理过期暂存。预算不等于腾讯云免费额度，需结合实际套餐剩余空间。
+活动、新闻、帖子可在正文光标处插入图片，支持安全表格和预览。新封面、弹窗及正文图片允许 3MB 原图，浏览器压缩至 50KiB 以内，每篇正文最多12张。图片分成不超过24KiB的片段上传，浏览器请求和 SQL RPC 均控制在64KiB以内；正文只保存图片引用，避免 Base64 造成网关413。保留旧图片与全部业务API，无新增付费存储；共享现有默认32MiB图片预算和私有过期暂存清理。
 
-本地检查、真实PG/RPC及浏览器测试不等于腾讯云上线验收；本任务未自动上传云函数、执行生产SQL或创建正式账号。新部署按第四阶段文档逐项验证。CloudBase默认域名与体验版限制、跨站Cookie及Node18生命周期问题仍需在正式运营前处理。
+本地检查、真实 PG/RPC 及浏览器测试不等于腾讯云上线验收；本任务未自动上传云函数、执行生产SQL或创建正式账号。部署步骤与回滚见最新部署文档。
 
 ## 开发环境
 

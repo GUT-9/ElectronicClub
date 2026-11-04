@@ -1,3 +1,4 @@
+import {validateExpired} from '../media/query'
 import {memoryAccessList} from './access-query'
 import { memoryForumList } from '../forum/memory-query'
 import type { Store, Transaction, ListOptions } from './store'
@@ -35,6 +36,7 @@ export class MemoryStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
+    if(collection==='media_expired'){validateExpired(filter,options);const items=[...this.data.entries()].filter(([key])=>key.startsWith('media_images/')).map(([,v])=>v as {bindings:unknown[];createdAt:string}).filter(v=>!v.bindings.length&&v.createdAt<String(filter.before)).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).slice(0,options.limit);return {items:structuredClone(items) as T[],total:items.length}}
     if(collection==='access_members')return memoryAccessList<T>(this.data,filter,options)
     if (collection.startsWith('forum_') || filter._forumAudit === true) return memoryForumList<T>(collection, filter, options, this.data)
     const items = [...this.data]

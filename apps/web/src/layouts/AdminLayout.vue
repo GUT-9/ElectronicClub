@@ -4,6 +4,33 @@ import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import BrandLogo from '../components/BrandLogo.vue'
 const auth = useAuthStore()
+const navGroups = computed(() =>
+  [
+    { name: '工作台', paths: ['/admin'] },
+    {
+      name: '内容与社区',
+      paths: [
+        '/admin/events',
+        '/admin/articles',
+        '/admin/popups',
+        '/admin/forum',
+      ],
+    },
+    {
+      name: '成员服务',
+      paths: ['/admin/members', '/admin/members/new', '/admin/imports'],
+    },
+    {
+      name: '权限与安全',
+      paths: ['/admin/roles', '/admin/permissions', '/admin/audit'],
+    },
+  ]
+    .map((g) => ({
+      ...g,
+      items: links.value.filter((l) => g.paths.includes(l.to)),
+    }))
+    .filter((g) => g.items.length),
+)
 const links = computed(() =>
   [
     { to: '/admin/forum', label: '电子社区管理', permission: '' },
@@ -27,17 +54,19 @@ const links = computed(() =>
       permission: 'members.import',
     },
     { to: '/admin/roles', label: '角色管理', permission: 'roles.read' },
-    { to: '/admin/permissions', label: '权限配置', permission: 'roles.read' },
+    { to: '/admin/permissions', label: '权限查询', permission: 'roles.read' },
     { to: '/admin/audit', label: '操作审计', permission: 'audit.read' },
   ].filter((item) =>
-    item.to === '/admin/forum' ? FORUM_PERMISSIONS.some(auth.can) : item.to === '/admin/articles'
-      ? [
-          'articles.create',
-          'articles.edit',
-          'articles.publish',
-          'articles.delete',
-        ].some(auth.can)
-      : !item.permission || auth.can(item.permission),
+    item.to === '/admin/forum'
+      ? FORUM_PERMISSIONS.some(auth.can)
+      : item.to === '/admin/articles'
+        ? [
+            'articles.create',
+            'articles.edit',
+            'articles.publish',
+            'articles.delete',
+          ].some(auth.can)
+        : !item.permission || auth.can(item.permission),
   ),
 )
 </script>
@@ -51,13 +80,20 @@ const links = computed(() =>
       >
       <p class="eyebrow">WORKSPACE</p>
       <nav aria-label="管理导航">
-        <RouterLink
-          v-for="item in links"
-          :key="item.to"
-          :to="item.to"
-          :class="{ active: $route.path === item.to }"
-          >{{ item.label }} <span>↗</span></RouterLink
+        <section
+          v-for="group in navGroups"
+          :key="group.name"
+          class="admin-nav-group"
         >
+          <h2>{{ group.name }}</h2>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.to"
+            :to="item.to"
+            :class="{ active: $route.path === item.to }"
+            >{{ item.label }} <span>↗</span></RouterLink
+          >
+        </section>
       </nav>
       <RouterLink to="/account" class="text-link">← 用户中心</RouterLink>
     </aside>
@@ -70,3 +106,28 @@ const links = computed(() =>
     </main>
   </div>
 </template>
+
+<style scoped>
+.admin-nav-group h2 {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: #7a8da5;
+  margin: 20px 16px 8px;
+  font-weight: 500;
+}
+.admin-sidebar .eyebrow {
+  display: none;
+}
+.admin-sidebar nav a {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+@media (max-width: 900px) {
+  .admin-nav-group {
+    display: contents;
+  }
+  .admin-nav-group h2 {
+    display: none;
+  }
+}
+</style>

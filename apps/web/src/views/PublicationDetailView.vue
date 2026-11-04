@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { imageSource } from '../media'
 import { ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import type {
@@ -31,10 +32,12 @@ async function load() {
     item.value = loaded
     await auth.restore(true)
     if (current !== generation) return
-    if (props.kind === 'events' && auth.member)
-      registration.value = await request(
+    if (props.kind === 'events' && auth.member) {
+      const result = await request<Registration>(
         `/events/${route.params.id}/registration`,
       )
+      if (current === generation) registration.value = result
+    }
   } catch (e) {
     if (current === generation) error.value = (e as Error).message
   }
@@ -78,7 +81,7 @@ watch(
       <p>{{ item.summary }}</p>
       <img
         v-if="item.cover"
-        :src="item.cover"
+        :src="imageSource(item.cover)"
         alt="封面"
         class="publication-cover"
       /><template v-if="'startsAt' in item"

@@ -9,10 +9,11 @@ import type {
 } from '@electronic-club/shared'
 import { request, download } from '../member-api'
 import { savePublication } from '../publication-api'
-import { fitCover, inlineImageBytes } from '../cover'
-import { beijing, localTime, utcTime, coverFile } from '../stage3'
+import { fitCover } from '../cover'
+import { uploadImage, imageSource } from '../media'
+import ContentEditor from '../components/ContentEditor.vue'
+import { beijing, localTime, utcTime } from '../stage3'
 import { useAuthStore } from '../stores/auth'
-import SafeMarkdown from '../components/SafeMarkdown.vue'
 const popupFilter = ref('all'),
   currentPopup = ref<PopupAnnouncement | null>(null)
 const statusLabels: Record<string, string> = {
@@ -57,7 +58,6 @@ const rows = ref<(ClubEvent | ClubArticle | PopupAnnouncement)[]>([]),
   rosterPage = ref(1),
   checkinCode = ref(''),
   checkinExpires = ref(''),
-  preview = ref(false),
   managerText = ref(''),
   manualStudentId = ref(''),
   managerSearch = ref(''),
@@ -203,6 +203,7 @@ async function load() {
   })
 }
 function edit(row: ClubEvent | ClubArticle | PopupAnnouncement) {
+  if (busy.value) return
   reset()
   selected.value = row.id
   for (const key of Object.keys(form)) {
@@ -220,7 +221,6 @@ function edit(row: ClubEvent | ClubArticle | PopupAnnouncement) {
     'expiresAt',
   ] as const)
     form[key] = localTime(form[key])
-  preview.value = false
 }
 function payload() {
   if (props.kind === 'events')
@@ -272,6 +272,9 @@ function payload() {
     priority: Number(form.priority),
   }
 }
+function setEditorBusy(value: boolean) {
+  busy.value = value
+}
 async function save() {
   const saved = await run(async () => {
     if (props.kind === 'popups') form.image = await fitCover(form.image)
@@ -281,14 +284,18 @@ async function save() {
     const record =
       props.kind === 'popups'
         ? await request<{ id: string; managerIds?: string[] }>(
-            '/popups', 'POST', body,
+            '/popups',
+            'POST',
+            body,
           )
         : await savePublication(
             props.kind,
             selected.value,
             { ...body, cover: form.cover },
             request,
-            (saved) => { selected.value = saved.id },
+            (saved) => {
+              selected.value = saved.id
+            },
           )
     selected.value = record.id
     if (record.managerIds) managerText.value = record.managerIds.join(',')
@@ -316,7 +323,9 @@ async function save() {
   })
   if (saved) {
     const refreshed = await load()
-    message.value = refreshed ? '已保存' : '内容已保存，但列表刷新失败：' + message.value
+    message.value = refreshed
+      ? '已保存'
+      : '内容已保存，但列表刷新失败：' + message.value
   }
 }
 async function publishArticle(publish: boolean) {
@@ -339,13 +348,12 @@ async function picture(e: Event) {
   if (file) {
     coverMessage.value = '正在读取并压缩图片…'
     const ok = await run(async () => {
-      const image = await coverFile(file)
-      if (props.kind === 'popups') form.image = image
-      else form.cover = image
+      const image = await uploadImage(file)
+      if (props.kind === 'popups') form.image = image.reference
+      else form.cover = image.reference
     })
-    const bytes = inlineImageBytes(props.kind === 'popups' ? form.image : form.cover)
     coverMessage.value = ok
-      ? `图片已处理${bytes === null ? '' : `（${(bytes / 1024).toFixed(1)}KB）`}，尚未保存。请点击下方“保存”。`
+      ? '图片已压缩至50KB以内并上传，尚未保存。请点击下方“保存”。'
       : message.value
     ;(e.target as HTMLInputElement).value = ''
   }
@@ -467,7 +475,9 @@ function turnRoster(n: number) {
     }}
   </h1>
   <p>时间均按北京时间填写和显示，提交后由服务端校验。</p>
-  <p role="status">{{ message }}</p>
+  <p v-if="message" class="operation-message" role="status" aria-live="polite">
+    {{ message }}
+  </p>
   <div class="publication-tools">
     <button
       v-if="
@@ -480,6 +490,7 @@ function turnRoster(n: number) {
         )
       "
       class="button button-primary"
+      :disabled="busy"
       @click="reset"
     >
       新建{{
@@ -542,7 +553,7 @@ function turnRoster(n: number) {
             }}
           </td>
           <td>
-            <button class="text-link" @click="edit(row)">
+            <button class="text-link" :disabled="busy" @click="edit(row)">
               {{ kind === 'popups' ? '预览/新版本' : '编辑' }}</button
             ><button
               v-if="kind === 'popups' && 'enabled' in row"
@@ -582,29 +593,26 @@ function turnRoster(n: number) {
     <label>标题<input v-model="form.title" maxlength="120" required /></label
     ><label>简介<textarea v-model="form.summary" maxlength="500" /></label
     ><label
-      >封面图片（PNG/JPEG/WebP，原文件1MB以内，自动压缩）<input
+      >封面图片（PNG/JPEG/WebP，原文件3MB以内，自动压缩至50KB以内）<input
         ref="coverInput"
         type="file"
-        :disabled="busy"
+        :disabled="busy || !canSave"
         accept="image/png,image/jpeg,image/webp"
         @change="picture" /></label
     ><img
       v-if="kind === 'popups' ? form.image : form.cover"
-      :src="kind === 'popups' ? form.image : form.cover"
+      :src="imageSource(kind === 'popups' ? form.image : form.cover)"
       class="editor-cover"
       alt="封面预览"
     />
     <p v-if="coverMessage" role="status">{{ coverMessage }}</p>
     <template v-if="kind !== 'popups'"
-      ><label
-        >正文（支持 # 标题、- 列表；HTML按文本显示）<textarea
-          v-model="form.content"
-          rows="12"
-          maxlength="100000"
-        /></label
-      ><button type="button" class="text-link" @click="preview = !preview">
-        {{ preview ? '关闭预览' : '预览正文' }}</button
-      ><SafeMarkdown v-if="preview" :content="form.content" /><label
+      ><ContentEditor
+        :key="kind + selected"
+        v-model="form.content"
+        :disabled="busy || !canSave"
+        @busy="setEditorBusy"
+      /><label
         >状态<select v-model="form.status">
           <option value="draft">草稿</option>
           <option value="published">发布</option>
@@ -776,7 +784,7 @@ function turnRoster(n: number) {
         删除
       </button>
     </div>
-    <p role="status" aria-live="polite">{{ busy ? '正在处理，请稍候…' : message }}</p>
+    <p v-if="busy" role="status" aria-live="polite">正在处理，请稍候…</p>
     <p
       v-if="
         kind !== 'popups' && selected && auth.can('announcements.popup.manage')

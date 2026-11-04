@@ -7,14 +7,14 @@ const bad = () => {
     '图片格式或文件内容不合法，请重新选择图片',
   )
 }
-export function inspectImage(uri: string) {
+export function inspectImage(uri: string, maxBytes = 32768) {
   const match =
     /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(uri)
   if (!match) return bad()
   const buffer = Buffer.from(match[2]!, 'base64')
   if (
     buffer.toString('base64') !== match[2] ||
-    buffer.length > 32768 ||
+    buffer.length > maxBytes ||
     buffer.length < 20
   )
     return bad()

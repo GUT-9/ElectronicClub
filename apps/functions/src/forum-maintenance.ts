@@ -1,3 +1,4 @@
+import {cleanupMedia} from './media/storage'
 import { HttpStore } from './members/http-store'
 import { PgStore } from './members/pg-store'
 import { cleanupStagedImages } from './forum/storage'
@@ -7,7 +8,7 @@ async function main() {
   const store =
     process.env.DB_DRIVER === 'postgres-tcp' ? new PgStore() : new HttpStore()
   try {
-    console.log(JSON.stringify(await cleanupStagedImages(store)))
+    console.log(JSON.stringify({forum:await cleanupStagedImages(store),content:await cleanupMedia(store)}))
   } finally {
     if (store instanceof PgStore) await store.pool.end()
   }

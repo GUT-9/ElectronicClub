@@ -1,3 +1,4 @@
+import {syncMedia,references} from '../media/model'
 import { changeImageStorage } from './storage'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -474,6 +475,7 @@ export class ForumService {
           createdAt: now,
           updatedAt: now,
         }
+        await syncMedia(tx,user,'forum_posts',p.id,references(p.body))
         await tx.set('forum_posts', p.id, p)
         await this.attach(tx, user, p.id, p.imageIds)
         await this.audit(tx, user, 'forum.posts.create', p.id)
@@ -589,6 +591,7 @@ export class ForumService {
                 : ('published' as const),
             updatedAt: this.now(),
           }
+          await syncMedia(tx,user,'forum_posts',id,references(next.body),references(post.body))
           await tx.set('forum_posts', id, next)
           for (const removed of post.imageIds.filter(
             (v) => !data.imageIds.includes(v),
