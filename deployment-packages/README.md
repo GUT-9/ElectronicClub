@@ -1,17 +1,17 @@
-# 记录ID一致性与封面保存修复部署包
+# 第四阶段电子社区 · 完整CloudBase部署包
 
-源码提交 `450891e28199b07b5d40840c6182a4b3dcdb2544`。修复旧JSON中的id与数据库主键不一致时，编辑写入另一条记录的问题；统一活动/文章读写主键，并保留报名和签到关联。前端检查编辑响应ID，提交未执行或列表刷新失败不再误报成功。
+源码提交 `8f0a9d9825e3dcc574b54f13d88cf9142851cafd`。论坛版块、帖子/附图、评论回复、点赞收藏、通知举报和动态权限管理已实现，保留原成员、活动、签到、文章及弹窗API。
 
-下载 [electronicclub-api.zip](electronicclub-api.zip)。先上传现有 `electronicclub-api`，入口 `index.main`，再更新 EdgeOne 前端。兼容 Node18.15，无新增环境变量，无DDL迁移，不重新初始化成员或管理员。保留POST编辑兼容入口及PATCH。步骤见 [部署说明](../docs/stage3-deploy.md)。
+直接下载 [electronicclub-api.zip](electronicclub-api.zip)（GitHub文件页Download raw file）。ZIP根目录含index.js、package.json、package-lock.json、node_modules完整运行依赖、diagnose/bootstrap及私有forum-maintenance.js、全部SQL和部署文档。入口 **index.main**，已使用实际 **Node18.15** 验证。没有注入真实密码、密钥、生产测试账号或测试帖子。
 
-[只读诊断SQL](../cloudbase/sql/diagnose-content-identity.sql)可检查实际生产数据；仅返回主键/id一致性、封面字符数、更新时间及目录引用。已在真实本地PG验证会检测错配且不修改数据。是否为生产根因仍待真实查询，不能将构造数据复现等同于线上确诊。
+**部署顺序：**先在已有第三阶段数据库执行 [009-stage4-forum.sql](../cloudbase/sql/009-stage4-forum.sql) 和 [只读核对SQL](../cloudbase/sql/verify-stage4-forum.sql)，再上传本ZIP到现有electronicclub-api，最后更新EdgeOne前端。不要重新初始化数据库、重建管理员或修改密码。完整环境、全部新增API和回滚见 [第四阶段部署文档](../docs/stage4-deploy.md)，[修改文件清单](../docs/stage4-files.md)。
 
-`npm run check`：43项全部通过（0跳过），包含真实本地PG/RPC的错配ID、原记录更新、另一记录不被覆盖及报名关联测试。浏览器使用用户原始129,028字节JPEG通过错配记录编辑、公开显示、busy跳过及列表刷新失败提示回归。Node18.15最终打包入口加载、健康200和未登录401通过。生产依赖10项moderate，0high/critical。未执行CloudBase上传或生产数据修改。
+验证：npm ci成功；npm run check包含ESLint、TypeScript、50项全部通过的测试（真实本地PG/RPC，0跳过）及生产构建。真实无CREATEROLE安装、迁移重试和旧数据摘要保持不变。浏览器375/430/1440/1920通过成员/管理流程及原JPG、PNG/WebP上传。最终Node18.15部署入口通过本地身份桥接/真实受限PG的登录、首次改密、论坛写读、图片二进制及私有清理。**不是腾讯云部署成功证明；本交付未执行生产SQL或云函数上传。**
 
-ZIP包含完整运行依赖和部署资源，不含实际密码或密钥。大小：12,142,390字节。
+生产依赖仍有10项moderate、0high/critical，未新增运行依赖。Node18生命周期、默认域名生产限制、真实云Cookie/二进制网关及免费配额仍需验收。图片默认32MiB编码文本预算可控，不额外开通付费服务。
 
-SHA-256：
+大小：12,198,941字节。SHA-256：
 
 ```
-73ccd05e996ff0766ea5def39fc58599ffd3e4ef5d4e552c819751fd0c28d642
+433b82e15283a90833aca92691e8981e8af364a8d72957ae1040c56137041d08
 ```
