@@ -1,3 +1,21 @@
+# 角色与权限工作台更新 · 完整 CloudBase 部署包
+
+源码提交 `9d8fc71`。本包保留此前全部 API，并增加角色成员名单、权限拥有者查询和事务内增量角色分配。
+
+**本次更新顺序：**在已经执行 009 的现有数据库执行 [010-role-access.sql](../cloudbase/sql/010-role-access.sql)，上传本 ZIP 替换原云函数，再更新 EdgeOne 前端。入口 `index.main`，环境变量保持不变；不重新初始化账号或数据库。完整说明与回滚见 [角色权限部署文档](../docs/access-workspace-deploy.md)。
+
+`npm ci`、`npm run check` 通过，51 项测试全部通过，无跳过；真实本地 PostgreSQL/RPC 和桌面/手机浏览器检查通过。最终入口已用 Node18.15 加载。生产依赖原有 10 moderate，0 high/critical。本次没有生产云端部署权限，未执行生产 SQL 或上传函数。
+
+ZIP 根目录直接含入口、package.json、package-lock.json、全部运行依赖、SQL 和部署文档。
+
+大小：12209011 字节。SHA-256：
+
+```
+bb621d053df737925b68f62c41428e41b2ac6ee6b6c13c769055a88d70d7070c
+```
+
+---
+
 # 第四阶段电子社区 · 完整CloudBase部署包
 
 源码提交 `8f0a9d9825e3dcc574b54f13d88cf9142851cafd`。论坛版块、帖子/附图、评论回复、点赞收藏、通知举报和动态权限管理已实现，保留原成员、活动、签到、文章及弹窗API。
