@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import { FORUM_PERMISSIONS } from '../forum'
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import BrandLogo from '../components/BrandLogo.vue'
 const auth = useAuthStore()
 const links = computed(() =>
   [
+    { to: '/admin/forum', label: '电子社区管理', permission: '' },
     { to: '/admin/events', label: '活动与报名', permission: '' },
     { to: '/admin/articles', label: '新闻公告', permission: '' },
     {
@@ -28,7 +30,7 @@ const links = computed(() =>
     { to: '/admin/permissions', label: '权限配置', permission: 'roles.read' },
     { to: '/admin/audit', label: '操作审计', permission: 'audit.read' },
   ].filter((item) =>
-    item.to === '/admin/articles'
+    item.to === '/admin/forum' ? FORUM_PERMISSIONS.some(auth.can) : item.to === '/admin/articles'
       ? [
           'articles.create',
           'articles.edit',

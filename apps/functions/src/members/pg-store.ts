@@ -1,6 +1,8 @@
+import { FORUM_TABLES, forumSelect, validateForumQuery } from '../forum/query'
 import { Pool } from 'pg'
 import type { Store, Transaction, ListOptions } from './store'
 const tables = new Set([
+  ...FORUM_TABLES,
   'events',
   'event_managers',
   'registrations',
@@ -178,6 +180,11 @@ export class PgStore implements Store {
     options: ListOptions,
   ) {
     await this.verifyRole()
+    if (c.startsWith('forum_') || filter._forumAudit === true) {
+      validateForumQuery(c, filter, options)
+      const result = await this.pool.query(forumSelect(c), [filter, options.limit, options.offset])
+      return result.rows[0].result as {items:T[];total:number}
+    }
     const args: unknown[] = [],
       clauses: string[] = []
     const param = (value: unknown) => {

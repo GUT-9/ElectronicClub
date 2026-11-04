@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { FORUM_PERMISSIONS } from '../forum'
 import { computed, reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
@@ -28,6 +29,7 @@ onMounted(() => {
 })
 const hasAdmin = computed(() =>
   [
+    ...FORUM_PERMISSIONS,
     'members.read',
     'members.create',
     'members.import',
@@ -82,7 +84,6 @@ async function revoke() {
 }
 </script>
 <template>
-  <RouterLink to="/admin/events" class="text-link">我的活动工作区 →</RouterLink>
   <section class="container account-page" v-if="auth.member">
     <p class="eyebrow">MEMBER PROFILE</p>
     <img
@@ -96,6 +97,13 @@ async function revoke() {
       height="72"
     />
     <h1>你好，{{ auth.member.nickname }}</h1>
+    <nav class="publication-tools" aria-label="成员快捷入口">
+      <RouterLink to="/community/me" class="text-link"
+        >我的帖子、收藏与回复通知 ↗</RouterLink
+      ><RouterLink to="/admin/events" class="text-link"
+        >我的活动工作区 →</RouterLink
+      >
+    </nav>
     <div class="account-grid">
       <div>
         <h2>成员档案</h2>

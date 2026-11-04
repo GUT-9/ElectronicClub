@@ -19,6 +19,7 @@ import { ApiError, ensure, studentIdSchema } from '../members/model'
 import { exportWorkbook } from '../members/xlsx'
 import { eventSchema, articleSchema, popupSchema } from './model'
 export interface StageResult {
+  contentType?: string
   data?: unknown
   binary?: Buffer
   filename?: string

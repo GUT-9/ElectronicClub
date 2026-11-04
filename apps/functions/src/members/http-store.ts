@@ -1,3 +1,4 @@
+import { validateForumQuery } from '../forum/query'
 import type { Store, Transaction, ListOptions } from './store'
 import { DatabaseFailure } from './pg-store'
 import { cloudbaseAuthorization } from './cloudbase-auth'
@@ -81,7 +82,9 @@ export class HttpStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
-    return (await this.rpc('ec_list', {
+    const forum = collection.startsWith('forum_') || filter._forumAudit === true
+    if (forum) validateForumQuery(collection, filter, options)
+    return (await this.rpc(forum ? 'ec_forum_list' : 'ec_list', {
       p_collection: collection,
       p_filter: filter,
       p_offset: options.offset,

@@ -1,3 +1,4 @@
+import { FORUM_PERMISSIONS } from './forum'
 import { createRouter, createWebHistory } from 'vue-router'
 import SiteLayout from './layouts/SiteLayout.vue'
 import { useAuthStore } from './stores/auth'
@@ -47,14 +48,15 @@ export const router = createRouter({
         },
         {
           path: 'community',
-          component: () => import('./views/ContentListView.vue'),
-          props: { kind: 'community' },
+          component: () => import('./views/ForumIndexView.vue'),
           meta: { title: '电子社区' },
         },
+        {path:'community/new',component:()=>import('./views/ForumEditorView.vue'),meta:{title:'发布帖子',auth:true}},
+        {path:'community/me',component:()=>import('./views/ForumMeView.vue'),meta:{title:'我的社区',auth:true}},
+        {path:'community/:id/edit',component:()=>import('./views/ForumEditorView.vue'),meta:{title:'编辑帖子',auth:true}},
         {
           path: 'community/:id',
-          component: () => import('./views/ContentDetailView.vue'),
-          props: { kind: 'community' },
+          component: () => import('./views/ForumDetailView.vue'),
           meta: { title: '帖子详情' },
         },
         {
@@ -84,6 +86,7 @@ export const router = createRouter({
       component: () => import('./layouts/AdminLayout.vue'),
       meta: { auth: true },
       children: [
+        {path:'forum',component:()=>import('./views/ForumAdminView.vue'),meta:{title:'电子社区管理',forumAdmin:true}},
         {
           path: 'events',
           component: () => import('./views/Stage3AdminView.vue'),
@@ -168,9 +171,11 @@ router.beforeEach(async (to) => {
     if (to.path === '/login' && auth.member) return '/account'
     if (to.meta.permission && !auth.can(String(to.meta.permission)))
       return '/account'
+    if (to.meta.forumAdmin && !FORUM_PERMISSIONS.some(auth.can)) return '/account'
     if (
       to.meta.admin &&
       ![
+        ...FORUM_PERMISSIONS,
         'members.read',
         'members.create',
         'members.import',

@@ -32,3 +32,4 @@ export type {
   ClubArticle,
   PopupAnnouncement,
 } from './stage3'
+export * from './forum'

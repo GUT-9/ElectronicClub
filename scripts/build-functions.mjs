@@ -13,6 +13,7 @@ for (const [name, source] of Object.entries({
   bootstrap: 'bootstrap',
   diagnose: 'diagnose',
   maintenance: 'maintenance',
+  'forum-maintenance': 'forum-maintenance',
   'offline-bootstrap': 'offline-bootstrap',
 }))
   await build({
@@ -61,3 +62,5 @@ await copyFile(
 await copyFile('../../scripts/verify-api.mjs', 'deploy/verify-api.mjs')
 
 await copyFile('../../docs/stage3-deploy.md', 'deploy/DEPLOY-STAGE3.md')
+
+await copyFile('../../docs/stage4-deploy.md', 'deploy/DEPLOY-STAGE4.md')

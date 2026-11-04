@@ -668,6 +668,7 @@ test(
             'SELECT public.ec_list($1,$2,$3,$4) AS value',
             [args.p_collection, args.p_filter, args.p_offset, args.p_limit],
           ],
+          ec_forum_list: ['SELECT public.ec_forum_list($1,$2,$3,$4) AS value',[args.p_collection,args.p_filter,args.p_offset,args.p_limit]],
           ec_commit: [
             'SELECT public.ec_commit($1,$2) AS value',
             [JSON.stringify(args.p_reads), JSON.stringify(args.p_writes)],
@@ -743,6 +744,37 @@ test(
       )
       const { stage3Suite } = await import('./helpers/stage3-suite')
       await stage3Suite(service, store, login.token!)
+
+      const preservedTables=['users','roles','credentials','sessions','student_ids','events','event_managers','registrations','checkins','articles','popup_announcements','popup_state','system']
+      const snapshot=async()=>Object.fromEntries(await Promise.all(preservedTables.map(async table=>[table,(await owner!.query(`SELECT md5(coalesce(jsonb_agg(data ORDER BY id),'[]'::jsonb)::text) AS digest FROM electronicclub.${table}`)).rows[0].digest])))
+      const stage3Before=await snapshot()
+      const forumSql=await readFile('cloudbase/sql/009-stage4-forum.sql','utf8')
+      assert.ok(!/^\s*(CREATE|ALTER) ROLE /m.test(forumSql))
+      await owner.query(forumSql)
+      await owner.query(forumSql)
+      assert.deepEqual(await snapshot(),stage3Before,'forum migration must preserve existing member/activity/content data')
+      for(const role of ['anon','authenticated'] as const){
+        await assert.rejects(()=>asRole(role,"SELECT public.ec_forum_list('forum_posts','{}',0,20)"),(e:unknown)=>(e as {code:string}).code==='42501')
+        await assert.rejects(()=>asRole(role,'SELECT data FROM electronicclub.forum_images'),(e:unknown)=>(e as {code:string}).code==='42501')
+      }
+      const {forumSuite}=await import('./helpers/forum-suite')
+      let forumNow=Date.now()
+      await forumSuite(new MemberService(store,()=>forumNow),store,login.token!,ms=>forumNow+=ms)
+      const comments=(await owner.query('SELECT id,data FROM electronicclub.forum_comments ORDER BY id LIMIT 1')).rows[0]
+      assert.ok(comments)
+      await assert.rejects(()=>owner!.query('DELETE FROM electronicclub.forum_posts WHERE id=$1',[comments.data.postId]),(e:unknown)=>(e as {code:string}).code==='23503')
+      await assert.rejects(()=>owner!.query("INSERT INTO electronicclub.forum_likes(id,data) VALUES('invalid-key',$1)",[JSON.stringify({id:'invalid-key',postId:comments.data.postId,uid:comments.data.authorUid,createdAt:new Date().toISOString()})]),(e:unknown)=>(e as {code:string}).code==='23514')
+      const otherPost=(await owner.query('SELECT id FROM electronicclub.forum_posts WHERE id<>$1 LIMIT 1',[comments.data.postId])).rows[0].id
+      const crossReply={...comments.data,id:'cross-thread-fixture',postId:otherPost,parentId:comments.id,floor:900}
+      await assert.rejects(()=>owner!.query('INSERT INTO electronicclub.forum_comments(id,data) VALUES($1,$2)',[crossReply.id,JSON.stringify(crossReply)]),(e:unknown)=>(e as {code:string}).code==='23503')
+      const duplicateFloor={...comments.data,id:'duplicate-floor-fixture',parentId:null}
+      await assert.rejects(()=>owner!.query('INSERT INTO electronicclub.forum_comments(id,data) VALUES($1,$2)',[duplicateFloor.id,JSON.stringify(duplicateFloor)]),(e:unknown)=>(e as {code:string}).code==='23505')
+      const sqlPage=await store.list('forum_posts',{_public:true,_sort:'reply'},{offset:0,limit:2})
+      assert.ok(sqlPage.total>0);assert.ok(sqlPage.items.length<=2)
+      const nativeForumPage=await new PgStore(owner).list('forum_posts',{_public:true,_sort:'reply'},{offset:0,limit:2})
+      assert.deepEqual(nativeForumPage,sqlPage)
+      await assert.rejects(()=>store.list('forum_posts',{evil:"';DROP TABLE users;--"},{offset:0,limit:20}))
+
       console.log(
         'Managed-role SQL executed by a real NOCREATEROLE schema owner; service-role bootstrap/login and browser isolation passed',
       )

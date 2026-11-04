@@ -1,3 +1,4 @@
+import { ForumService } from '../forum/service'
 import { Stage3Service } from '../stage3/service'
 import { randomUUID } from 'node:crypto'
 import { z } from 'zod'
@@ -49,6 +50,7 @@ interface Context extends Identity {
   sessionId: string
 }
 interface Result {
+  contentType?: string
   binary?: Buffer
   filename?: string
   status?: number
@@ -464,6 +466,8 @@ export class MemberService {
     input: unknown,
     query: Record<string, string>,
   ): Promise<Result> {
+    if (/^\/api\/forum(?:\/|$)/.test(path))
+      return new ForumService(this.store, (token, fn) => this.secure(token, fn), this.clock).execute(token, method, path, input, query)
     if (/^\/api\/(?:public|events|articles|popups)(?:\/|$)/.test(path))
       return new Stage3Service(
         this.store,
