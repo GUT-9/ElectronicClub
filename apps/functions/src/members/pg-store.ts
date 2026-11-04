@@ -1,3 +1,4 @@
+import {ACCESS_SQL,validateAccessQuery} from './access-query'
 import { FORUM_TABLES, forumSelect, validateForumQuery } from '../forum/query'
 import { Pool } from 'pg'
 import type { Store, Transaction, ListOptions } from './store'
@@ -180,6 +181,7 @@ export class PgStore implements Store {
     options: ListOptions,
   ) {
     await this.verifyRole()
+    if(c==='access_members'){validateAccessQuery(filter,options);return (await this.pool.query(ACCESS_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}
     if (c.startsWith('forum_') || filter._forumAudit === true) {
       validateForumQuery(c, filter, options)
       const result = await this.pool.query(forumSelect(c), [filter, options.limit, options.offset])

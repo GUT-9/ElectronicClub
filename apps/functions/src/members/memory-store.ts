@@ -1,3 +1,4 @@
+import {memoryAccessList} from './access-query'
 import { memoryForumList } from '../forum/memory-query'
 import type { Store, Transaction, ListOptions } from './store'
 // Explicit test/local adapter only. Production never falls back to it.
@@ -34,6 +35,7 @@ export class MemoryStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
+    if(collection==='access_members')return memoryAccessList<T>(this.data,filter,options)
     if (collection.startsWith('forum_') || filter._forumAudit === true) return memoryForumList<T>(collection, filter, options, this.data)
     const items = [...this.data]
       .filter(([key]) => key.startsWith(`${collection}/`))

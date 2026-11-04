@@ -1,3 +1,4 @@
+import { validateAccessQuery } from './access-query'
 import { validateForumQuery } from '../forum/query'
 import type { Store, Transaction, ListOptions } from './store'
 import { DatabaseFailure } from './pg-store'
@@ -82,6 +83,7 @@ export class HttpStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
+    if(collection==='access_members'){validateAccessQuery(filter,options);return await this.rpc('ec_access_members',{p_filter:filter,p_offset:options.offset,p_limit:options.limit}) as {items:T[];total:number}}
     const forum = collection.startsWith('forum_') || filter._forumAudit === true
     if (forum) validateForumQuery(collection, filter, options)
     return (await this.rpc(forum ? 'ec_forum_list' : 'ec_list', {

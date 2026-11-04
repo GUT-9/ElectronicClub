@@ -467,7 +467,11 @@ export class MemberService {
     query: Record<string, string>,
   ): Promise<Result> {
     if (/^\/api\/forum(?:\/|$)/.test(path))
-      return new ForumService(this.store, (token, fn) => this.secure(token, fn), this.clock).execute(token, method, path, input, query)
+      return new ForumService(
+        this.store,
+        (token, fn) => this.secure(token, fn),
+        this.clock,
+      ).execute(token, method, path, input, query)
     if (/^\/api\/(?:public|events|articles|popups)(?:\/|$)/.test(path))
       return new Stage3Service(
         this.store,
@@ -762,6 +766,165 @@ export class MemberService {
             fields,
           )
           return { data: next }
+        }
+        const accessRoster = path.match(
+          /^\/api\/(roles|permissions)\/([a-zA-Z0-9_.-]+)\/members$/,
+        )
+        if (accessRoster && method === 'GET') {
+          this.require(ctx, 'roles.read')
+          this.require(ctx, 'members.read')
+          const [, scope, id] = accessRoster
+          ensure(await tx.get(scope, id), 404, 'NOT_FOUND', '角色或权限不存在')
+          const options = z
+            .object({
+              page: z.coerce.number().int().min(1).max(10000).default(1),
+              pageSize: z.coerce.number().int().min(1).max(50).default(20),
+              search: z.string().max(80).default(''),
+              status: z
+                .enum(['active', 'disabled', 'deleted', 'all'])
+                .default(scope === 'roles' ? 'all' : 'active'),
+            })
+            .strict()
+            .parse(query)
+          const result = await this.store.list(
+            'access_members',
+            {
+              [scope === 'roles' ? 'roleId' : 'permissionId']: id,
+              search: options.search,
+              status: options.status,
+            },
+            {
+              offset: (options.page - 1) * options.pageSize,
+              limit: options.pageSize,
+            },
+          )
+          return {
+            data: { ...result, page: options.page, pageSize: options.pageSize },
+          }
+        }
+        if (path === '/api/roles/member-lookup' && method === 'GET') {
+          this.require(ctx, 'roles.read')
+          this.require(ctx, 'members.read')
+          this.require(ctx, 'roles.assign')
+          const { studentId } = z
+            .object({ studentId: studentIdSchema })
+            .strict()
+            .parse(query)
+          const index = await tx.get<{ uid: string }>(
+            'student_ids',
+            studentIdKey(studentId),
+          )
+          const target = index
+            ? await tx.get<Member>('users', index.uid)
+            : undefined
+          ensure(
+            target && target.status !== 'deleted',
+            404,
+            'NOT_FOUND',
+            '未找到可分配角色的成员',
+          )
+          await this.manageable(tx, ctx, target)
+          const roles = await Promise.all(
+            target.roleIds.map(async (id) => {
+              const r = await tx.get<Role>('roles', id)
+              return { id, name: r?.name ?? id, super: !!r?.super }
+            }),
+          )
+          return {
+            data: {
+              uid: target.uid,
+              studentId: target.studentId,
+              name: target.name,
+              nickname: target.nickname,
+              status: target.status,
+              roleIds: target.roleIds,
+              roles,
+              sources: [],
+            },
+          }
+        }
+        const accessChange = path.match(
+          /^\/api\/roles\/([a-zA-Z0-9_-]+)\/members\/([a-zA-Z0-9-]+)$/,
+        )
+        if (accessChange && method === 'POST') {
+          this.require(ctx, 'roles.read')
+          this.require(ctx, 'roles.assign')
+          const [, roleId, uid] = accessChange
+          const body = z
+            .object({
+              action: z.enum(['add', 'remove']),
+              replacementRoleId: z.string().min(1).max(64).optional(),
+            })
+            .strict()
+            .parse(input)
+          ensure(
+            body.action === 'remove' || !body.replacementRoleId,
+            400,
+            'INVALID_INPUT',
+            '添加角色时无需替代角色',
+          )
+          const target = await tx.get<Member>('users', uid)
+          ensure(
+            target && target.status !== 'deleted',
+            404,
+            'NOT_FOUND',
+            '成员不存在或已删除',
+          )
+          await this.manageable(tx, ctx, target)
+          for (const id of [
+            roleId,
+            ...(body.replacementRoleId ? [body.replacementRoleId] : []),
+          ]) {
+            const role = await tx.get<Role>('roles', id)
+            ensure(role, 400, 'INVALID_ROLE', '角色不存在')
+            ensure(
+              ctx.super ||
+                (!role.super &&
+                  role.permissionIds.every((p) => ctx.permissions.includes(p))),
+              403,
+              'SCOPE_EXCEEDED',
+              '不能分配或移除超出自身权限的角色',
+            )
+          }
+          const has = target.roleIds.includes(roleId)
+          if (has === (body.action === 'add'))
+            return { data: { uid, changed: false, roleIds: target.roleIds } }
+          ensure(
+            body.replacementRoleId !== roleId,
+            400,
+            'INVALID_ROLE',
+            '替代角色不能与移除的角色相同',
+          )
+          const roleIds =
+            body.action === 'add'
+              ? [...target.roleIds, roleId]
+              : [
+                  ...new Set([
+                    ...target.roleIds.filter((id) => id !== roleId),
+                    ...(body.replacementRoleId ? [body.replacementRoleId] : []),
+                  ]),
+                ]
+          await this.protectLast(tx, ctx, target, { roleIds })
+          ensure(
+            roleIds.length >= 1 && roleIds.length <= 10,
+            400,
+            'INVALID_ROLES',
+            '成员需保留 1 至 10 个角色，请选择替代角色',
+          )
+          await this.adjustRoles(tx, target, roleIds)
+          await tx.set('users', uid, {
+            ...target,
+            roleIds,
+            version: target.version + 1,
+            updatedAt: new Date(this.clock()).toISOString(),
+          })
+          await this.audit(tx, user.uid, `roles.members.${body.action}`, uid, [
+            `role:${roleId}`,
+            ...(body.replacementRoleId
+              ? [`replacement:${body.replacementRoleId}`]
+              : []),
+          ])
+          return { data: { uid, changed: true, roleIds } }
         }
         if (path === '/api/permissions' && method === 'GET') {
           this.require(ctx, 'roles.read')

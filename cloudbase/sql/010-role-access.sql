@@ -1,0 +1,18 @@
+-- Additive access-members query. No role/user/password changes.
+BEGIN;
+SELECT pg_advisory_xact_lock(1991,1);
+CREATE INDEX IF NOT EXISTS access_members_role_lookup ON electronicclub.user_roles(role_id,user_id);
+CREATE INDEX IF NOT EXISTS access_roles_permission_lookup ON electronicclub.roles USING gin((data->'permissionIds'));
+CREATE OR REPLACE FUNCTION public.ec_access_members(p_filter jsonb,p_offset integer,p_limit integer) RETURNS jsonb LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog AS $$
+DECLARE result jsonb;
+BEGIN
+PERFORM electronicclub.ec_assert_backend_role();
+IF p_filter IS NULL OR jsonb_typeof(p_filter)<>'object' OR EXISTS(SELECT 1 FROM jsonb_object_keys(p_filter) k WHERE k NOT IN ('roleId','permissionId','search','status')) OR EXISTS(SELECT 1 FROM jsonb_each(p_filter) kv WHERE jsonb_typeof(kv.value)<>'string') OR ((p_filter ? 'roleId')::int+(p_filter ? 'permissionId')::int)<>1 THEN RAISE EXCEPTION 'INVALID_ACCESS_FILTER'; END IF;
+IF coalesce(p_filter->>'status','active') NOT IN ('active','disabled','deleted','all') OR length(coalesce(p_filter->>'search',''))>80 OR p_offset IS NULL OR p_limit IS NULL OR p_offset<0 OR p_limit<1 OR p_limit>50 THEN RAISE EXCEPTION 'INVALID_ACCESS_PAGE'; END IF;
+EXECUTE 'WITH filtered AS (SELECT u.id,u.data FROM electronicclub.users u WHERE u.data->>''status'' IN (''active'',''disabled'',''deleted'') AND (coalesce($1::jsonb->>''status'',''active'')=''all'' OR u.data->>''status''=coalesce($1::jsonb->>''status'',''active'')) AND (NOT $1::jsonb ? ''search'' OR strpos(upper(coalesce(u.data->>''studentId'','''')||'' ''||coalesce(u.data->>''name'','''')||'' ''||coalesce(u.data->>''nickname'','''')),upper($1::jsonb->>''search''))>0) AND EXISTS(SELECT 1 FROM electronicclub.user_roles ur JOIN electronicclub.roles r ON r.id=ur.role_id WHERE ur.user_id=u.id AND (($1::jsonb ? ''roleId'' AND r.id=$1::jsonb->>''roleId'') OR ($1::jsonb ? ''permissionId'' AND (r.data->>''super''=''true'' OR r.data->''permissionIds'' @> jsonb_build_array($1::jsonb->>''permissionId'')))))),paged AS (SELECT id,data FROM filtered ORDER BY data->>''studentId'',id LIMIT $2 OFFSET $3) SELECT jsonb_build_object(''total'',(SELECT count(*) FROM filtered),''items'',coalesce((SELECT jsonb_agg(jsonb_build_object(''uid'',p.id,''studentId'',p.data->>''studentId'',''name'',p.data->>''name'',''nickname'',p.data->>''nickname'',''status'',p.data->>''status'',''roleIds'',p.data->''roleIds'',''roles'',coalesce((SELECT jsonb_agg(jsonb_build_object(''id'',r.id,''name'',r.data->>''name'',''super'',coalesce((r.data->>''super'')::boolean,false)) ORDER BY r.data->>''name'',r.id) FROM electronicclub.user_roles ur JOIN electronicclub.roles r ON r.id=ur.role_id WHERE ur.user_id=p.id),''[]''::jsonb),''sources'',coalesce((SELECT jsonb_agg(jsonb_build_object(''id'',r.id,''name'',r.data->>''name'',''super'',coalesce((r.data->>''super'')::boolean,false)) ORDER BY r.data->>''name'',r.id) FROM electronicclub.user_roles ur JOIN electronicclub.roles r ON r.id=ur.role_id WHERE ur.user_id=p.id AND (($1::jsonb ? ''roleId'' AND r.id=$1::jsonb->>''roleId'') OR ($1::jsonb ? ''permissionId'' AND (r.data->>''super''=''true'' OR r.data->''permissionIds'' @> jsonb_build_array($1::jsonb->>''permissionId''))))),''[]''::jsonb)) ORDER BY p.data->>''studentId'',p.id) FROM paged p),''[]''::jsonb)) AS result' INTO result USING p_filter,p_limit,p_offset;
+RETURN result;END $$;
+REVOKE ALL ON FUNCTION public.ec_access_members(jsonb,integer,integer) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.ec_access_members(jsonb,integer,integer) TO service_role;
+INSERT INTO electronicclub.schema_migrations(version) VALUES('010-role-access') ON CONFLICT DO NOTHING;
+NOTIFY pgrst,'reload schema';
+COMMIT;

@@ -668,6 +668,7 @@ test(
             'SELECT public.ec_list($1,$2,$3,$4) AS value',
             [args.p_collection, args.p_filter, args.p_offset, args.p_limit],
           ],
+          ec_access_members: ['SELECT public.ec_access_members($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_forum_list: ['SELECT public.ec_forum_list($1,$2,$3,$4) AS value',[args.p_collection,args.p_filter,args.p_offset,args.p_limit]],
           ec_commit: [
             'SELECT public.ec_commit($1,$2) AS value',
@@ -757,6 +758,16 @@ test(
         await assert.rejects(()=>asRole(role,"SELECT public.ec_forum_list('forum_posts','{}',0,20)"),(e:unknown)=>(e as {code:string}).code==='42501')
         await assert.rejects(()=>asRole(role,'SELECT data FROM electronicclub.forum_images'),(e:unknown)=>(e as {code:string}).code==='42501')
       }
+      const accessBefore=await snapshot()
+      const accessSql=await readFile('cloudbase/sql/010-role-access.sql','utf8')
+      await owner.query(accessSql)
+      await owner.query(accessSql)
+      assert.deepEqual(await snapshot(),accessBefore)
+      for(const role of ['anon','authenticated'] as const) await assert.rejects(()=>asRole(role,"SELECT public.ec_access_members('{\"roleId\":\"role_member\"}',0,20)"),(e:unknown)=>(e as {code:string}).code==='42501')
+      const {accessSuite}=await import('./helpers/access-suite')
+      const accessFixture=await accessSuite(service,store,login.token!)
+      const accessFilter={roleId:accessFixture.roleId,status:'all'}
+      assert.deepEqual(await new PgStore(owner).list('access_members',accessFilter,{offset:0,limit:20}),await store.list('access_members',accessFilter,{offset:0,limit:20}))
       const {forumSuite}=await import('./helpers/forum-suite')
       let forumNow=Date.now()
       await forumSuite(new MemberService(store,()=>forumNow),store,login.token!,ms=>forumNow+=ms)

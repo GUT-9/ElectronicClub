@@ -33,3 +33,4 @@ export type {
   PopupAnnouncement,
 } from './stage3'
 export * from './forum'
+export type {AccessRoleSummary,AccessMember} from './access'
