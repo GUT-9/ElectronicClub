@@ -1,4 +1,5 @@
 import {memoryMemberStats} from './stats-query'
+import {memoryRoster} from '../stage3/roster-query'
 import {purgeMemoryMember} from './purge'
 import type {Member} from '@electronic-club/shared'
 import {memoryResourceList} from '../resources/query'
@@ -46,6 +47,7 @@ export class MemoryStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
+    if(collection==='event_roster')return memoryRoster(this.data,filter,options) as unknown as {items:T[];total:number}
     if(collection==='member_stats'){if(Object.keys(filter).length||options.offset!==0||options.limit!==1)throw new Error('INVALID_STATS_QUERY');return{items:[memoryMemberStats(this.data)] as T[],total:1}}
     if(collection==='club_resources')return memoryResourceList<T>(this.data,filter,options)
     if(collection==='login_history')return memoryLoginList<T>(this.data,filter,options)

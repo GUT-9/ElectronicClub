@@ -1,4 +1,9 @@
-import { mediaReference } from '@electronic-club/shared'
+import {
+  mediaReference,
+  MAX_EVENT_MANAGERS,
+  DEFAULT_CHECKIN_TTL_SECONDS,
+  MAX_CHECKIN_TTL_SECONDS,
+} from '@electronic-club/shared'
 import { z } from 'zod'
 const text = z.string().trim()
 export const image = z
@@ -36,7 +41,17 @@ export const eventSchema = z
     notesEnabled: z.boolean().default(false),
     notesRequired: z.boolean().default(false),
     checkinEnabled: z.boolean().default(false),
-    managerIds: z.array(z.string().uuid()).max(30).default([]),
+    checkinTtlSeconds: z
+      .number()
+      .int()
+      .min(30)
+      .max(MAX_CHECKIN_TTL_SECONDS)
+      .default(DEFAULT_CHECKIN_TTL_SECONDS),
+    managerIds: z
+      .array(z.string().uuid())
+      .max(MAX_EVENT_MANAGERS)
+      .transform((ids) => [...new Set(ids)])
+      .default([]),
   })
   .strict()
   .superRefine((v, ctx) => {

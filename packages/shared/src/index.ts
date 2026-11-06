@@ -31,7 +31,12 @@ export type {
   Registration,
   ClubArticle,
   PopupAnnouncement,
+  EventManagerOption,
+  EventAccess,
+  EventCheckinState,
+  EventRosterSummary,
 } from './stage3'
+export { MAX_EVENT_MANAGERS, DEFAULT_CHECKIN_TTL_SECONDS, MAX_CHECKIN_TTL_SECONDS } from './stage3'
 export * from './forum'
 export type {AccessRoleSummary,AccessMember} from './access'
 export {MAX_SOURCE_IMAGE_BYTES,MAX_MEDIA_IMAGE_BYTES,MEDIA_CHUNK_BYTES,MAX_BODY_IMAGES,mediaReference,bodyMedia,imageLine,permissionGroup,PERMISSION_GROUP_ORDER} from './media'

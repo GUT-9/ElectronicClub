@@ -671,6 +671,7 @@ test(
           ],
           ec_member_stats:['SELECT public.ec_member_stats() AS value',[]],
           ec_resources_list:['SELECT public.ec_resources_list($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
+          ec_event_roster:['SELECT public.ec_event_roster($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_login_history:['SELECT public.ec_login_history($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_media_expired: ['SELECT public.ec_media_expired($1,$2) AS value',[args.p_before,args.p_limit]],
           ec_access_members: ['SELECT public.ec_access_members($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
@@ -745,6 +746,7 @@ test(
       ).rows[0]
       await owner.query(await readFile('cloudbase/sql/008-stage3.sql', 'utf8'))
       await owner.query(await readFile('cloudbase/sql/008-stage3.sql', 'utf8'))
+      await owner.query(await readFile('cloudbase/sql/015-event-operations.sql', 'utf8'))
       assert.deepEqual(
         (
           await owner.query(
@@ -860,6 +862,17 @@ test(
       await native.execute(login.token!, 'POST', `/api/members/${nativeUser.uid}/purge`, { confirmUid: nativeUser.uid }, {})
       assert.equal(await store.read('users',nativeUser.uid),null)
       assert.equal((await owner.query("SELECT count(*) AS n FROM electronicclub.roles r WHERE (r.data->>'memberCount')::int<>(SELECT count(*) FROM electronicclub.user_roles ur WHERE ur.role_id=r.id)")).rows[0].n,'0')
+      const operationsBefore = await snapshot()
+      const operationsSql = await readFile('cloudbase/sql/015-event-operations.sql','utf8')
+      await owner.query(operationsSql)
+      await owner.query(operationsSql)
+      assert.deepEqual(await snapshot(),operationsBefore,'Roster migration must preserve accounts, passwords, role assignments, events and registrations')
+      for(const role of ['anon','authenticated'] as const)await assert.rejects(()=>asRole(role,"SELECT public.ec_event_roster('{\"eventId\":\"11111111-1111-4111-8111-111111111111\"}',0,20)"),(e:unknown)=>(e as {code:string}).code==='42501')
+      const {eventOperationsSuite}=await import('./helpers/event-operations-suite')
+      let operationsNow=Date.now()
+      const operationsFixture=await eventOperationsSuite(new MemberService(store,()=>operationsNow),store,login.token!,ms=>operationsNow+=ms,()=>operationsNow)
+      const rosterFilter={eventId:operationsFixture.eventId,status:'',checkedIn:'',search:'',college:'',className:''}
+      assert.deepEqual(await store.list('event_roster',rosterFilter,{offset:0,limit:2}),await new PgStore(owner).list('event_roster',rosterFilter,{offset:0,limit:2}))
 
       console.log(
         'Managed-role SQL executed by a real NOCREATEROLE schema owner; service-role bootstrap/login and browser isolation passed',

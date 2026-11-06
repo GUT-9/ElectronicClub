@@ -17,7 +17,7 @@
     "lint": "eslint .",
     "build": "npm run build -w @electronic-club/shared && npm run build -w @electronic-club/functions && npm run build -w @electronic-club/web",
     "test": "node --import tsx --test tests/*.test.ts",
-    "check": "npm run sql:check && npm run forum:sql:check && npm run access:sql:check && npm run media:sql:check && npm run login:sql:check && npm run resources:sql:check && npm run member-purge:sql:check && npm run lint && npm run typecheck && npm test && npm run build",
+    "check": "npm run sql:check && npm run forum:sql:check && npm run access:sql:check && npm run media:sql:check && npm run login:sql:check && npm run resources:sql:check && npm run member-purge:sql:check && npm run event-operations:sql:check && npm run lint && npm run typecheck && npm test && npm run build",
     "package:functions": "npm run build -w @electronic-club/functions && node scripts/package-functions.mjs",
     "sql:generate": "node scripts/generate-managed-sql.mjs",
     "sql:check": "node scripts/generate-managed-sql.mjs --check",
@@ -31,7 +31,9 @@
     "resources:sql:generate": "node --import tsx scripts/generate-resources-sql.mts",
     "resources:sql:check": "node --import tsx scripts/generate-resources-sql.mts --check",
     "member-purge:sql:generate": "node --import tsx scripts/generate-member-purge-sql.mts",
-    "member-purge:sql:check": "node --import tsx scripts/generate-member-purge-sql.mts --check"
+    "member-purge:sql:check": "node --import tsx scripts/generate-member-purge-sql.mts --check",
+    "event-operations:sql:generate": "node --import tsx scripts/generate-event-operations-sql.mts",
+    "event-operations:sql:check": "node --import tsx scripts/generate-event-operations-sql.mts --check"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

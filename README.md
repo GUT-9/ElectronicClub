@@ -108,6 +108,8 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 
 成员彻底删除：新增 `members.purge` 独立权限，需执行014迁移并更新函数/前端，见[部署与删除范围](docs/member-purge-deploy.md)。仅适用于无业务关联的已软删除账号，不会级联删除活动或论坛内容。
 
+活动流程优化：015新增报名名单数据库分页，配套函数/前端提供独立审核和签到入口、姓名多选及按角色批量负责人、自定义签到有效期，见[升级说明](docs/event-operations-deploy.md)。
+
 `GET /api/health` → HTTP 200：
 
 ```json

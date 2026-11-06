@@ -6,6 +6,7 @@ import type {
   ClubEvent,
   ClubArticle,
   Registration,
+  EventAccess,
 } from '@electronic-club/shared'
 import { request } from '../member-api'
 import { useAuthStore } from '../stores/auth'
@@ -18,6 +19,7 @@ const props = defineProps<{ kind: 'events' | 'articles' }>(),
   auth = useAuthStore(),
   item = ref<ClubEvent | ClubArticle | null>(null),
   registration = ref<Registration | null>(null),
+  eventAccess = ref<EventAccess | null>(null),
   error = ref(''),
   message = ref(''),
   note = ref(''),
@@ -64,6 +66,10 @@ async function load() {
         `/events/${route.params.id}/registration`,
       )
       if (current === generation) registration.value = result
+      const access = await request<EventAccess>(
+        `/events/${route.params.id}/access`,
+      )
+      if (current === generation) eventAccess.value = access
     }
   } catch {
     if (current === generation)
@@ -73,7 +79,7 @@ async function load() {
   }
 }
 async function action(path: string, method = 'POST', data: unknown = {}) {
-  if(busy.value)return
+  if (busy.value) return
   busy.value = true
   message.value = ''
   try {
@@ -87,10 +93,16 @@ async function action(path: string, method = 'POST', data: unknown = {}) {
   }
 }
 watch(
-  () => [props.kind, route.params.id],
+  () => [props.kind, route.params.id, route.query.checkin],
   () => {
     item.value = null
     registration.value = null
+    eventAccess.value = null
+    code.value =
+      typeof route.query.checkin === 'string' &&
+      route.query.checkin.length <= 200
+        ? route.query.checkin
+        : ''
     error.value = ''
     message.value = ''
     void load()
@@ -138,6 +150,28 @@ watch(
         </div>
       </div>
       <SafeMarkdown :content="item.content" />
+      <div
+        v-if="kind === 'events' && (eventAccess?.roster || eventAccess?.edit)"
+        class="publication-tools"
+      >
+        <RouterLink
+          class="button button-outline"
+          :to="{
+            path: '/admin/events',
+            query: { event: item.id, tab: 'registrations' },
+          }"
+          >管理此活动 · 报名审核与名单</RouterLink
+        >
+        <RouterLink
+          v-if="eventAccess?.checkin"
+          class="text-link"
+          :to="{
+            path: '/admin/events',
+            query: { event: item.id, tab: 'checkin' },
+          }"
+          >签到管理 →</RouterLink
+        >
+      </div>
       <section
         v-if="'registrationEnabled' in item && item.registrationEnabled"
         class="registration-panel"
@@ -207,22 +241,42 @@ watch(
           >
             取消报名
           </button>
-          <form
-            v-if="
-              item.checkinEnabled &&
-              registration?.status === 'approved' &&
-              !registration.checkedInAt
-            "
-            class="member-form"
-            @submit.prevent="action('checkin', 'POST', { code })"
-          >
-            <label
-              >签到码<input v-model="code" required maxlength="200" /></label
-            ><button :disabled="busy" class="button button-primary">
-              签到
-            </button>
-          </form></template
+        </template>
+        <p role="status">{{ message }}</p>
+      </section>
+      <section
+        v-if="
+          kind === 'events' &&
+          'checkinEnabled' in item &&
+          item.checkinEnabled &&
+          auth.member &&
+          registration?.status === 'approved'
+        "
+        class="registration-panel"
+      >
+        <h2>活动签到</h2>
+        <p v-if="registration.checkedInAt">
+          已签到：{{ beijing(registration.checkedInAt) }}
+        </p>
+        <form
+          v-else
+          class="member-form"
+          @submit.prevent="action('checkin', 'POST', { code })"
         >
+          <p>请填写活动负责人提供的有效签到码，或打开负责人分享的签到链接。</p>
+          <label
+            >签到码<input
+              v-model="code"
+              required
+              maxlength="200"
+              autocomplete="off" /></label
+          ><button
+            :disabled="busy || membershipLoading"
+            class="button button-primary"
+          >
+            确认签到
+          </button>
+        </form>
         <p role="status">{{ message }}</p>
       </section>
     </article>

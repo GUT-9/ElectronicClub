@@ -1,4 +1,5 @@
 import {MEMBER_STATS_SQL} from './stats-query'
+import {EVENT_ROSTER_SQL,validateRosterQuery} from '../stage3/roster-query'
 import {purgeDatabaseError} from './purge'
 import {RESOURCE_SQL,validateResourceQuery} from '../resources/query'
 import {LOGIN_HISTORY_SQL,validateLoginQuery} from './login-query'
@@ -190,6 +191,7 @@ export class PgStore implements Store {
     options: ListOptions,
   ) {
     await this.verifyRole()
+    if(c==='event_roster'){validateRosterQuery(filter,options);return(await this.pool.query(EVENT_ROSTER_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}
     if(c==='member_stats'){if(Object.keys(filter).length||options.offset!==0||options.limit!==1)throw new Error('INVALID_STATS_QUERY');return{items:[(await this.pool.query(MEMBER_STATS_SQL)).rows[0].result] as T[],total:1}}
     if(c==='club_resources'){validateResourceQuery(filter,options);return(await this.pool.query(RESOURCE_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}
     if(c==='login_history'){validateLoginQuery(filter,options);return (await this.pool.query(LOGIN_HISTORY_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}

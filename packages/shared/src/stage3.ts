@@ -18,6 +18,7 @@ export interface ClubEvent {
   notesRequired: boolean
   checkinEnabled: boolean
   checkinOpen: boolean
+  checkinTtlSeconds?: number
   managerIds: string[]
   registrationIds: string[]
   occupied: number
@@ -26,6 +27,36 @@ export interface ClubEvent {
   publishedAt: string | null
   createdAt: string
   updatedAt: string
+}
+export const MAX_EVENT_MANAGERS = 100
+export const DEFAULT_CHECKIN_TTL_SECONDS = 30 * 60
+export const MAX_CHECKIN_TTL_SECONDS = 24 * 60 * 60
+export interface EventManagerOption {
+  uid: string
+  name: string
+  nickname: string
+  status: 'active' | 'disabled' | 'deleted'
+  roles: { id: string; name: string }[]
+}
+export interface EventAccess {
+  edit: boolean
+  assignManagers: boolean
+  roster: boolean
+  review: boolean
+  export: boolean
+  checkin: boolean
+}
+export interface EventCheckinState {
+  open: boolean
+  enabled: boolean
+  expiresAt: string | null
+  ttlSeconds: number
+  code?: string | null
+}
+export interface EventRosterSummary {
+  checkedIn: number
+  notCheckedIn: number
+  pending: number
 }
 export interface Registration {
   id: string

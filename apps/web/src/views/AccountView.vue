@@ -131,6 +131,7 @@ async function revoke() {
       <RouterLink v-if="hasAdmin" to="/admin" class="button button-outline"
         >管理工作台 ↗</RouterLink
       >
+      <RouterLink to="/admin/events" class="text-link">我负责的活动：报名审核与签到 →</RouterLink>
     </header>
     <div class="member-shortcuts">
       <RouterLink to="/community/me"

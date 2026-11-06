@@ -1,4 +1,12 @@
 import { syncMedia, references } from '../media/model'
+import { managerOptions, managerSummaries } from './manager-options'
+import type { RosterResult } from './roster-query'
+import { validateRosterQuery } from './roster-query'
+import {
+  MAX_EVENT_MANAGERS,
+  DEFAULT_CHECKIN_TTL_SECONDS,
+  MAX_CHECKIN_TTL_SECONDS,
+} from '@electronic-club/shared'
 import { studentIdKey } from '../members/crypto'
 import {
   randomUUID,
@@ -14,6 +22,7 @@ import type {
   ClubArticle,
   Registration,
   PopupAnnouncement,
+  EventAccess,
 } from '@electronic-club/shared'
 import type { Store, Transaction } from '../members/store'
 import { ApiError, ensure, studentIdSchema } from '../members/model'
@@ -95,6 +104,23 @@ export class Stage3Service {
       '未获此活动管理授权',
     )
   }
+  private access(ctx: Identity, e: ClubEvent): EventAccess {
+    const manager = e.managerIds.includes(ctx.member.uid)
+    const can = (p: string) => this.can(ctx, p) || manager
+    return {
+      edit: can('events.edit'),
+      assignManagers: this.can(ctx, 'events.edit'),
+      roster: [
+        'events.registrations.read',
+        'events.registrations.review',
+        'events.registrations.export',
+        'events.checkin.manage',
+      ].some(can),
+      review: can('events.registrations.review'),
+      export: can('events.registrations.export'),
+      checkin: can('events.checkin.manage'),
+    }
+  }
   private async audit(
     tx: Transaction,
     ctx: Identity,
@@ -134,26 +160,34 @@ export class Stage3Service {
       pageSize,
     }
   }
-  private async rows(tx: Transaction, e: ClubEvent, q: Record<string, string>) {
-    const rows = (
-      await Promise.all(
-        e.registrationIds.map((id) =>
-          tx.get<Registration>('registrations', id),
-        ),
-      )
-    ).filter((r): r is Registration => !!r)
-    return rows.filter(
-      (r) =>
-        (!q.status || r.status === q.status) &&
-        (!q.college || r.snapshot.college === q.college) &&
-        (!q.className || r.snapshot.className === q.className) &&
-        (!q.checkedIn ||
-          (q.checkedIn === 'yes' ? !!r.checkedInAt : !r.checkedInAt)) &&
-        (!q.search ||
-          `${r.snapshot.studentId} ${r.snapshot.name}`
-            .toUpperCase()
-            .includes(q.search.toUpperCase())),
-    )
+  private async roster(e: ClubEvent, q: Record<string, string>) {
+    const parsed = z
+      .object({
+        page: z.coerce.number().int().min(1).max(10000).default(1),
+        pageSize: z.coerce.number().int().min(1).max(100).default(20),
+        search: z.string().max(100).default(''),
+        college: z.string().max(100).default(''),
+        className: z.string().max(100).default(''),
+        status: z
+          .enum(['', 'pending', 'approved', 'rejected', 'cancelled', 'manual'])
+          .default(''),
+        checkedIn: z.enum(['', 'yes', 'no']).default(''),
+      })
+      .strict()
+      .parse(q)
+    const { page, pageSize, ...filters } = parsed
+    const filter = { ...filters, eventId: e.id },
+      options = { offset: (page - 1) * pageSize, limit: pageSize }
+    validateRosterQuery(filter, options)
+    return {
+      ...((await this.store.list<Registration>(
+        'event_roster',
+        filter,
+        options,
+      )) as RosterResult),
+      page,
+      pageSize,
+    }
   }
   private async retireDue(tx: Transaction, catalog: Catalog, except = '') {
     for (const id of catalog.popups) {
@@ -307,6 +341,20 @@ export class Stage3Service {
         id = parts[1],
         action = parts[2]
       if (kind === 'events') {
+        if (id === 'manager-options' || id === 'manager-roles') {
+          const result = await managerOptions(
+            tx,
+            this.store,
+            ctx,
+            method,
+            id,
+            action,
+            input,
+            q,
+          )
+          await this.audit(tx, ctx, 'events.manager_candidates', 'users')
+          return result
+        }
         if (!id && method === 'GET') {
           const all = (
             await Promise.all(
@@ -350,6 +398,12 @@ export class Stage3Service {
           }
           if (!event.managerIds.includes(ctx.member.uid))
             event.managerIds.push(ctx.member.uid)
+          ensure(
+            event.managerIds.length <= MAX_EVENT_MANAGERS,
+            400,
+            'MANAGER_LIMIT',
+            `负责人最多${MAX_EVENT_MANAGERS}人，包含创建者`,
+          )
           await syncMedia(
             tx,
             ctx,
@@ -409,6 +463,19 @@ export class Stage3Service {
           )
           return { data: event }
         }
+        if (action === 'access' && method === 'GET')
+          return { data: this.access(ctx, event) }
+        if (action === 'managers' && method === 'GET') {
+          ensure(
+            this.readableEvent(ctx, event),
+            403,
+            'EVENT_SCOPE',
+            '未获此活动管理授权',
+          )
+          return {
+            data: { items: await managerSummaries(tx, event.managerIds) },
+          }
+        }
         if (!action && method === 'PATCH') {
           this.scope(ctx, event, 'events.edit')
           const data = eventSchema.parse({
@@ -421,7 +488,8 @@ export class Stage3Service {
             ...z.record(z.string(), z.unknown()).parse(input),
           })
           if (
-            JSON.stringify(data.managerIds) !== JSON.stringify(event.managerIds)
+            data.managerIds.length !== event.managerIds.length ||
+            data.managerIds.some((uid) => !event.managerIds.includes(uid))
           )
             this.require(ctx, 'events.edit')
           ensure(
@@ -433,7 +501,8 @@ export class Stage3Service {
           for (const uid of data.managerIds) {
             const member = await tx.get<{ status: string }>('users', uid)
             ensure(
-              member?.status === 'active',
+              member &&
+                (member.status === 'active' || event.managerIds.includes(uid)),
               400,
               'INVALID_MANAGER',
               '负责人须为有效成员',
@@ -449,6 +518,10 @@ export class Stage3Service {
           const next = {
             ...event,
             ...data,
+            checkinOpen:
+              data.checkinEnabled &&
+              data.status === 'published' &&
+              event.checkinOpen,
             publishedAt:
               event.publishedAt ??
               (data.status === 'published' ? this.now() : null),
@@ -463,6 +536,11 @@ export class Stage3Service {
             references(event.content, event.cover),
           )
           await tx.set('events', event.id, next)
+          if (!next.checkinOpen)
+            await tx.set('system', `checkin:${event.id}`, {
+              hash: '',
+              expiresAt: 0,
+            })
           await this.audit(tx, ctx, 'events.edit', event.id)
           return { data: next }
         }
@@ -611,14 +689,20 @@ export class Stage3Service {
           return { data: { ok: true } }
         }
         if (action === 'registrations' && method === 'GET') {
-          this.scope(
-            ctx,
+          const exporting = parts[3] === 'export.xlsx'
+          if (exporting) this.scope(ctx, event, 'events.registrations.export')
+          else
+            ensure(
+              this.access(ctx, event).roster,
+              403,
+              'EVENT_SCOPE',
+              '未获此活动报名名单查看授权',
+            )
+          const page = await this.roster(
             event,
-            parts[3] === 'export.xlsx'
-              ? 'events.registrations.export'
-              : 'events.registrations.read',
+            exporting ? { ...q, page: '1', pageSize: '100' } : q,
           )
-          const rows = await this.rows(tx, event, q)
+          let rows = page.items
           await this.audit(
             tx,
             ctx,
@@ -628,12 +712,27 @@ export class Stage3Service {
             event.id,
           )
           if (parts[3] === 'export.xlsx') {
+            ensure(
+              page.total <= 10000,
+              413,
+              'EXPORT_LIMIT',
+              '导出最多10000条记录，请先按状态、姓名或学院筛选',
+            )
+            for (let nextPage = 2; rows.length < page.total; nextPage++) {
+              const next = await this.roster(event, {
+                ...q,
+                page: String(nextPage),
+                pageSize: '100',
+              })
+              if (!next.items.length) break
+              rows = rows.concat(next.items)
+            }
             const statuses = {
               pending: '待审核',
               approved: '已通过',
               rejected: '已拒绝',
               cancelled: '已取消',
-              manual: '补签（未报名）',
+              manual: '人工补签',
             }
             const binary = await exportWorkbook(
               [
@@ -672,15 +771,7 @@ export class Stage3Service {
               filename: `${[...event.title.replace(/[\\/:*?"<>|\r\n]/g, '_')].slice(0, 48).join('')}-报名签到名单-${new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Shanghai' }).format(new Date(this.clock()))}.xlsx`,
             }
           }
-          return {
-            data: {
-              ...(await this.page(rows, q)),
-              summary: {
-                checkedIn: rows.filter((r) => !!r.checkedInAt).length,
-                notCheckedIn: rows.filter((r) => !r.checkedInAt).length,
-              },
-            },
-          }
+          return { data: page }
         }
         if (action === 'review' && method === 'POST') {
           this.scope(ctx, event, 'events.registrations.review')
@@ -712,35 +803,74 @@ export class Stage3Service {
           await this.audit(tx, ctx, 'events.review', r.id)
           return { data: { ok: true } }
         }
+        if (action === 'checkin-status' && method === 'GET') {
+          this.scope(ctx, event, 'events.checkin.manage')
+          const key = await tx.get<{ expiresAt: number }>(
+            'system',
+            `checkin:${event.id}`,
+          )
+          return {
+            data: {
+              enabled: event.checkinEnabled && event.status === 'published',
+              open: !!(
+                event.checkinEnabled &&
+                event.status === 'published' &&
+                event.checkinOpen &&
+                key &&
+                key.expiresAt > this.clock()
+              ),
+              expiresAt:
+                key && key.expiresAt > 0
+                  ? new Date(key.expiresAt).toISOString()
+                  : null,
+              ttlSeconds:
+                event.checkinTtlSeconds ?? DEFAULT_CHECKIN_TTL_SECONDS,
+            },
+          }
+        }
         if (action === 'checkin-code' && method === 'POST') {
           this.scope(ctx, event, 'events.checkin.manage')
+          const body = z
+            .object({
+              open: z.boolean(),
+              ttlSeconds: z
+                .number()
+                .int()
+                .min(30)
+                .max(MAX_CHECKIN_TTL_SECONDS)
+                .optional(),
+            })
+            .strict()
+            .parse(input)
           ensure(
-            event.checkinEnabled && event.status === 'published',
+            !body.open ||
+              (event.checkinEnabled && event.status === 'published'),
             409,
             'CHECKIN_DISABLED',
             '此活动未启用签到',
           )
-          const body = z
-              .object({
-                open: z.boolean(),
-                ttlSeconds: z.number().int().min(30).max(600).default(120),
-              })
-              .strict()
-              .parse(input),
-            code = randomBytes(24).toString('base64url')
+          const ttlSeconds =
+            body.ttlSeconds ??
+            event.checkinTtlSeconds ??
+            DEFAULT_CHECKIN_TTL_SECONDS
+          const code = body.open ? randomBytes(24).toString('base64url') : null
           event.checkinOpen = body.open
+          event.checkinTtlSeconds = ttlSeconds
+          event.updatedAt = this.now()
           await tx.set('events', event.id, event)
           await tx.set('system', `checkin:${event.id}`, {
-            hash: sha(code),
-            expiresAt: this.clock() + body.ttlSeconds * 1000,
+            hash: code ? sha(code) : '',
+            expiresAt: body.open ? this.clock() + ttlSeconds * 1000 : 0,
           })
           await this.audit(tx, ctx, 'events.checkin_code', event.id)
           return {
             data: {
-              code: body.open ? code : null,
-              expiresAt: new Date(
-                this.clock() + body.ttlSeconds * 1000,
-              ).toISOString(),
+              code,
+              enabled: event.checkinEnabled && event.status === 'published',
+              ttlSeconds,
+              expiresAt: body.open
+                ? new Date(this.clock() + ttlSeconds * 1000).toISOString()
+                : null,
               open: body.open,
             },
           }
@@ -760,6 +890,7 @@ export class Stage3Service {
               event.checkinOpen &&
               key &&
               key.expiresAt > this.clock() &&
+              /^[a-f0-9]{64}$/.test(key.hash) &&
               timingSafeEqual(
                 Buffer.from(key.hash, 'hex'),
                 Buffer.from(sha(body.code), 'hex'),
@@ -795,7 +926,7 @@ export class Stage3Service {
         }
         if (action === 'manual-checkin' && method === 'POST') {
           ensure(
-            event.checkinEnabled,
+            event.checkinEnabled && event.status === 'published',
             409,
             'CHECKIN_DISABLED',
             '此活动未启用签到',
@@ -809,6 +940,13 @@ export class Stage3Service {
             .strict()
             .parse(input)
           const rid = `${event.id}:${body.uid}`
+          const member = await tx.get<Member>('users', body.uid)
+          ensure(
+            member?.status === 'active',
+            400,
+            'INVALID_MEMBER',
+            '补签对象须为有效成员',
+          )
           let existing = await tx.get<Registration>('registrations', rid)
           if (!existing) {
             const m = await tx.get<Member>('users', body.uid)
@@ -842,8 +980,17 @@ export class Stage3Service {
           if (!existing.checkedInAt) {
             await tx.set('registrations', rid, {
               ...existing,
+              status:
+                existing.status === 'pending'
+                  ? 'approved'
+                  : ['cancelled', 'rejected'].includes(existing.status)
+                    ? 'manual'
+                    : existing.status,
               checkedInAt: this.now(),
               checkinMethod: 'manual',
+              ...(existing.status === 'pending'
+                ? { reviewedBy: ctx.member.uid }
+                : {}),
               updatedAt: this.now(),
             })
             await tx.set('checkins', rid, {
