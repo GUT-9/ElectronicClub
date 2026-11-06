@@ -12,6 +12,7 @@ const auth = useAuthStore(),
   message = ref(''),
   member = ref<Member | null>(null),
   roles = ref<Role[]>([]),
+  purgeConfirmation = ref(''),
   selected = ref<string[]>([])
 const creating = computed(() => !route.params.id)
 const form = reactive({
@@ -120,6 +121,17 @@ function anonymize() {
     )
   )
     void operation('anonymize', 'POST', {})
+}
+async function purge() {
+  const target = member.value
+  if (!target || purgeConfirmation.value !== (target.studentId || target.uid))
+    return
+  await act(async () => {
+    await request(`/members/${target.uid}/purge`, 'POST', {
+      confirmUid: target.uid,
+    })
+    await router.push({ path: '/admin/members', query: { purged: '1' } })
+  })
 }
 onMounted(() => act(load))
 </script>
@@ -253,5 +265,42 @@ onMounted(() => act(load))
         不可逆匿名化
       </button>
     </div>
+  </section>
+  <section
+    v-if="
+      member?.status === 'deleted' &&
+      auth.can('members.purge') &&
+      member.uid !== auth.member?.uid
+    "
+    class="admin-empty"
+  >
+    <h2>彻底删除成员</h2>
+    <p>
+      仅适用于没有帖子、报名、签到、资料等业务关联的账号。将清除账号、密码、会话及导入身份资料，并释放学号；操作不可恢复。保留必要的操作审计。
+    </p>
+    <p>
+      存在业务记录时，请使用匿名化，保留历史内容的完整关联。已匿名化账号须先完成后台隐私清理任务。
+    </p>
+    <form class="member-form" @submit.prevent="purge">
+      <label
+        >{{
+          member.studentId ? '输入该成员学号以确认' : '输入该成员 UID 以确认'
+        }}
+        <input
+          v-model="purgeConfirmation"
+          :disabled="busy"
+          autocomplete="off"
+          :maxlength="100"
+        />
+      </label>
+      <button
+        class="plain-button danger"
+        :disabled="
+          busy || purgeConfirmation !== (member.studentId || member.uid)
+        "
+      >
+        {{ busy ? '处理中…' : '永久删除，无法恢复' }}
+      </button>
+    </form>
   </section>
 </template>

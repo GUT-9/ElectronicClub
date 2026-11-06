@@ -29,6 +29,9 @@ const providerCodes = new Set([
   'ServiceUnavailable',
 ])
 const sqlStates = new Set([
+  'P1401',
+  'P1402',
+  'P1403',
   '42501',
   '42P01',
   '42883',

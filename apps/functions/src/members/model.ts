@@ -103,6 +103,7 @@ export const permissionDefinitions = [
   ['members.import', 'Excel导入', '成员'],
   ['members.export', '成员导出', '成员'],
   ['members.delete', '软删除与恢复', '成员'],
+  ['members.purge', '彻底删除成员（不可恢复）', '成员'],
   ['members.password', '密码重置', '成员'],
   ['members.status', '禁用与恢复账号', '成员'],
   ['roles.read', '角色与权限查询', '权限'],

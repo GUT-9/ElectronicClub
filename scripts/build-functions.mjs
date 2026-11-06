@@ -68,3 +68,4 @@ await copyFile('../../docs/access-workspace-deploy.md', 'deploy/DEPLOY-ACCESS.md
 await copyFile('../../docs/content-media-deploy.md', 'deploy/DEPLOY-MEDIA.md')
 await copyFile('../../docs/login-history-deploy.md', 'deploy/DEPLOY-LOGIN-HISTORY.md')
 await copyFile('../../docs/resources-deploy.md', 'deploy/DEPLOY-RESOURCES.md')
+await copyFile('../../docs/member-purge-deploy.md', 'deploy/DEPLOY-MEMBER-PURGE.md')

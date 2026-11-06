@@ -14,6 +14,7 @@ import type {
 } from '../packages/shared/src/index'
 import { templateWorkbook } from '../apps/functions/src/members/xlsx'
 import ExcelJS from 'exceljs'
+import { purgeDatabaseError } from '../apps/functions/src/members/purge'
 const url = process.env.PG_TEST_URL
 test(
   'real PostgreSQL: migrations, constraints, auth, RBAC, import, rollback and concurrency',
@@ -681,7 +682,11 @@ test(
         }
         if(name==='ec_commit' && JSON.stringify(args.p_writes).includes('media_chunks')) assert.ok(Buffer.byteLength(JSON.stringify(args))<65536,'media SQL RPC must remain below 64KiB')
         const call = calls[name]!
-        return (await asRole('service_role', call[0], call[1])).rows[0].value
+        try {
+          return (await asRole('service_role', call[0], call[1])).rows[0].value
+        } catch (error) {
+          throw purgeDatabaseError((error as { code?: string }).code) ?? error
+        }
       })
       const service = new MemberService(store)
       const root = await service.bootstrap(
@@ -826,6 +831,35 @@ test(
       const nativeForumPage=await new PgStore(owner).list('forum_posts',{_public:true,_sort:'reply'},{offset:0,limit:2})
       assert.deepEqual(nativeForumPage,sqlPage)
       await assert.rejects(()=>store.list('forum_posts',{evil:"';DROP TABLE users;--"},{offset:0,limit:20}))
+
+      const purgeBefore = await snapshot()
+      const oldSystem = (await owner.query("SELECT id,data FROM electronicclub.system ORDER BY id")).rows
+      const purgeSql = await readFile('cloudbase/sql/014-member-purge.sql', 'utf8')
+      assert.ok(!/^\s*(CREATE|ALTER) ROLE /m.test(purgeSql))
+      await owner.query(purgeSql)
+      await owner.query(purgeSql)
+      const purgeAfter = await snapshot()
+      assert.deepEqual({ ...purgeAfter, system: purgeBefore.system }, purgeBefore, 'Installing purge does not delete accounts or change roles/passwords/business data')
+      assert.deepEqual((await owner.query("SELECT id,data FROM electronicclub.system WHERE id<>'member_purge' ORDER BY id")).rows, oldSystem)
+      for (const role of ['anon', 'authenticated'] as const) {
+        assert.equal((await owner.query("SELECT has_function_privilege($1,'electronicclub.ec_member_purge()','EXECUTE') AS allowed", [role])).rows[0].allowed, false)
+        await assert.rejects(() => asRole(role, 'DELETE FROM electronicclub.users'), (e: unknown) => (e as { code: string }).code === '42501')
+      }
+      const { memberPurgeSuite } = await import('./helpers/member-purge-suite')
+      await memberPurgeSuite(service, store, login.token!)
+      // Native adapter and a future CASCADE foreign key both use the same guard.
+      const native = new MemberService(new PgStore(owner))
+      const nativeUser = (await native.execute(login.token!, 'POST', '/api/members', { studentId: '00PURGENATIVE', name: '本机PG删除测试' }, {})).data as Member
+      await native.execute(login.token!, 'DELETE', `/api/members/${nativeUser.uid}`, {}, {})
+      await owner.query('CREATE TABLE electronicclub.future_member_reference(id text PRIMARY KEY,member_uid text REFERENCES electronicclub.users(id) ON DELETE CASCADE)')
+      await owner.query('GRANT SELECT ON electronicclub.future_member_reference TO service_role')
+      await owner.query('INSERT INTO electronicclub.future_member_reference VALUES($1,$2)', ['keep-future-history',nativeUser.uid])
+      await assert.rejects(() => native.execute(login.token!, 'POST', `/api/members/${nativeUser.uid}/purge`, { confirmUid: nativeUser.uid }, {}), (e: unknown) => (e as { code: string }).code === 'MEMBER_HAS_HISTORY')
+      assert.equal((await owner.query('SELECT count(*) AS n FROM electronicclub.future_member_reference')).rows[0].n,'1')
+      await owner.query('DROP TABLE electronicclub.future_member_reference')
+      await native.execute(login.token!, 'POST', `/api/members/${nativeUser.uid}/purge`, { confirmUid: nativeUser.uid }, {})
+      assert.equal(await store.read('users',nativeUser.uid),null)
+      assert.equal((await owner.query("SELECT count(*) AS n FROM electronicclub.roles r WHERE (r.data->>'memberCount')::int<>(SELECT count(*) FROM electronicclub.user_roles ur WHERE ur.role_id=r.id)")).rows[0].n,'0')
 
       console.log(
         'Managed-role SQL executed by a real NOCREATEROLE schema owner; service-role bootstrap/login and browser isolation passed',

@@ -30,7 +30,12 @@ export function imageLine(line: string): { id: string; alt: string } | null {
 }
 export function permissionGroup(id: string): string {
   if (id.startsWith('members.'))
-    return ['members.password', 'members.status', 'members.delete'].includes(id)
+    return [
+      'members.password',
+      'members.status',
+      'members.delete',
+      'members.purge',
+    ].includes(id)
       ? '账号与安全'
       : '成员资料'
   if (id === 'security.logins.read') return '账号与安全'

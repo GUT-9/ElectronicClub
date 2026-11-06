@@ -1,4 +1,5 @@
 import {MEMBER_STATS_SQL} from './stats-query'
+import {purgeDatabaseError} from './purge'
 import {RESOURCE_SQL,validateResourceQuery} from '../resources/query'
 import {LOGIN_HISTORY_SQL,validateLoginQuery} from './login-query'
 import {EXPIRED_MEDIA_SQL,validateExpired} from '../media/query'
@@ -161,6 +162,8 @@ export class PgStore implements Store {
         /* original failure preserved */
       }
       const code = String((error as { code?: string }).code ?? '')
+      const purgeError = purgeDatabaseError(code)
+      if (purgeError) throw purgeError
       if (/^[0-9A-Z]{5}$/.test(code)) throw new DatabaseFailure(stage, code)
       throw error
     } finally {

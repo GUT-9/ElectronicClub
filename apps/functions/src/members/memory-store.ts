@@ -1,4 +1,6 @@
 import {memoryMemberStats} from './stats-query'
+import {purgeMemoryMember} from './purge'
+import type {Member} from '@electronic-club/shared'
 import {memoryResourceList} from '../resources/query'
 import {memoryLoginList} from './login-query'
 import {validateExpired} from '../media/query'
@@ -28,6 +30,7 @@ export class MemoryStore implements Store {
           copy.set(`${c}/${id}`, structuredClone(value))
         },
         remove: async (c, id) => {
+          if(c==='users' && copy.has(`users/${id}`)) purgeMemoryMember(copy, copy.get(`users/${id}`) as Member)
           copy.delete(`${c}/${id}`)
         },
       }

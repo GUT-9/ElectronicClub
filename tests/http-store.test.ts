@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { cloudbaseRpc } from '../apps/functions/src/members/http-store'
 import { DatabaseFailure } from '../apps/functions/src/members/pg-store'
+import { ApiError } from '../apps/functions/src/members/model'
 test('official HTTPS transport uses environment ID and private Bearer key; failures are sanitized', async () => {
   const oldEnv = process.env.CLOUDBASE_ENV_ID,
     oldKey = process.env.CLOUDBASE_APIKEY,
@@ -70,6 +71,25 @@ test('official HTTPS transport uses environment ID and private Bearer key; failu
         error instanceof DatabaseFailure &&
         error.safeCode === 'RDB_HTTP_UNREACHABLE',
     )
+    for (const [code, expected] of [
+      ['P1401', 'MEMBER_HAS_HISTORY'],
+      ['P1402', 'PURGE_NOT_ALLOWED'],
+      ['P1403', 'PRIVACY_CLEANUP_PENDING'],
+    ]) {
+      globalThis.fetch = async () =>
+        new Response(
+          JSON.stringify({ code, message: 'private database details' }),
+          { status: 400, headers: { 'Content-Type': 'application/json' } },
+        )
+      await assert.rejects(
+        cloudbaseRpc()('ec_commit', {}),
+        (error: unknown) =>
+          error instanceof ApiError &&
+          error.status === 409 &&
+          error.code === expected &&
+          !error.message.includes('private database details'),
+      )
+    }
   } finally {
     globalThis.fetch = oldFetch
     if (oldEnv === undefined) delete process.env.CLOUDBASE_ENV_ID

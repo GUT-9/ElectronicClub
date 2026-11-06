@@ -308,7 +308,11 @@ export class MemberService {
               : i === 1
                 ? permissionDefinitions
                     .filter(
-                      (p) => p.implemented && p.id !== 'security.logins.read',
+                      (p) =>
+                        p.implemented &&
+                        !['security.logins.read', 'members.purge'].includes(
+                          p.id,
+                        ),
                     )
                     .map((p) => p.id)
                 : [],
@@ -687,7 +691,7 @@ export class MemberService {
           return { data: { ...result, page: options.page, pageSize: 100 } }
         }
         const memberMatch = path.match(
-          /^\/api\/members\/([a-zA-Z0-9-]+)(?:\/(roles|password|status|restore|anonymize))?$/,
+          /^\/api\/members\/([a-zA-Z0-9-]+)(?:\/(roles|password|status|restore|anonymize|purge))?$/,
         )
         if (memberMatch) {
           const id = memberMatch[1]!
@@ -699,19 +703,71 @@ export class MemberService {
             return { data: target }
           }
           const required =
-            action === 'roles'
-              ? 'roles.assign'
-              : action === 'password'
-                ? 'members.password'
-                : action === 'status'
-                  ? 'members.status'
-                  : action === 'restore' ||
-                      action === 'anonymize' ||
-                      method === 'DELETE'
-                    ? 'members.delete'
-                    : 'members.edit'
+            action === 'purge'
+              ? 'members.purge'
+              : action === 'roles'
+                ? 'roles.assign'
+                : action === 'password'
+                  ? 'members.password'
+                  : action === 'status'
+                    ? 'members.status'
+                    : action === 'restore' ||
+                        action === 'anonymize' ||
+                        method === 'DELETE'
+                      ? 'members.delete'
+                      : 'members.edit'
           this.require(ctx, required)
           await this.manageable(tx, ctx, target)
+          if (action === 'purge' && method === 'POST') {
+            const body = z
+              .object({ confirmUid: z.string().uuid() })
+              .strict()
+              .parse(input)
+            ensure(
+              body.confirmUid === id,
+              400,
+              'PURGE_CONFIRMATION',
+              '删除确认与目标成员不一致',
+            )
+            ensure(
+              id !== user.uid,
+              409,
+              'PURGE_SELF',
+              '不能彻底删除当前登录账号',
+            )
+            ensure(
+              target.status === 'deleted',
+              409,
+              'PURGE_NOT_DELETED',
+              '请先软删除成员，再执行彻底删除',
+            )
+            ensure(
+              !(await this.identity(tx, target)).super,
+              409,
+              'PURGE_SUPER_ADMIN',
+              '超级管理员账号不能彻底删除',
+            )
+            ensure(
+              await tx.get('system', 'member_purge'),
+              503,
+              'PURGE_MIGRATION_REQUIRED',
+              '请先执行014-member-purge.sql数据库升级',
+            )
+            await this.protectLast(tx, ctx, target, { status: 'deleted' })
+            await this.adjustRoles(tx, target, [])
+            // The 014 database trigger checks business references and atomically
+            // removes only account data. Any failure rolls back counts and audit.
+            await tx.remove('users', id)
+            await this.audit(tx, user.uid, 'members.purge', id, [
+              'account',
+              'credentials',
+              'sessions',
+              'studentId',
+              'importPersonalData',
+              'loginMetadata',
+            ])
+            return { data: { uid: id, deleted: true } }
+          }
           let next = { ...target, updatedAt: this.now() }
           let fields: string[] = []
           if (!action && method === 'PATCH') {

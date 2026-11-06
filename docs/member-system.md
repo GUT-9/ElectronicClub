@@ -99,6 +99,7 @@ npm run bootstrap -w @electronic-club/functions -- --initialize
 | DELETE /api/members/:uid | members.delete；软删除，保留学号预约 |
 | POST /api/members/:uid/restore | members.delete；恢复为禁用状态，另行启用 |
 | POST /api/members/:uid/anonymize | 仅超级管理员；仅软删除账号，不可逆匿名化 |
+| POST /api/members/:uid/purge | members.purge；彻底删除无业务关联的已软删除账号，需014升级，详见[部署说明](member-purge-deploy.md) |
 | GET /api/members/export?page=N | members.export + members.read；每批100条JSON |
 | GET /api/members/export.xlsx?page=N | 同上；每批100条XLSX，学号文本 |
 | GET /api/roles?page=N | roles.read；每页100个 |
@@ -123,7 +124,7 @@ npm run bootstrap -w @electronic-club/functions -- --initialize
 
 ## 软删除、匿名化和保留策略
 
-默认软删除可恢复，恢复后为禁用状态，学号仍预约。匿名化只允许超级管理员对软删除账号操作：清空 users 中身份字段、角色和凭据，撤销旧会话并释放学号预约；保留最小UID墓碑及审计关联，不提供不受控的硬删除 HTTP 接口。
+默认软删除可恢复，恢复后为禁用状态，学号仍预约。匿名化只允许超级管理员对软删除账号操作：清空 users 中身份字段、角色和凭据，撤销旧会话并释放学号预约；保留最小UID墓碑及审计关联。014新增独立 `members.purge` 权限和受控彻底删除接口，仅清理无业务关联的已软删除账号；存在业务历史时仍应匿名化，不能级联清空历史内容。
 
 匿名化事务同时创建私有 `privacy_jobs`，因为历史导入任务也可能含个人信息，部署运维必须随后执行：
 

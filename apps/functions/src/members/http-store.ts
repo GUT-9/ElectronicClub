@@ -1,4 +1,5 @@
 import {validateResourceQuery} from '../resources/query'
+import {purgeDatabaseError} from './purge'
 import {validateLoginQuery} from './login-query'
 import {validateExpired} from '../media/query'
 import { validateAccessQuery } from './access-query'
@@ -42,6 +43,8 @@ export function cloudbaseRpc(): Rpc {
     if (!response.ok) {
       if (response.status === 401) auth.invalidate()
       const diagnostic = await rdbDiagnostic(response, name)
+      const purgeError = name === 'ec_commit' && purgeDatabaseError(diagnostic.upstreamCode)
+      if(purgeError) throw purgeError
       throw new DatabaseFailure(
         'http_rpc',
         rdbFailureCode(diagnostic),

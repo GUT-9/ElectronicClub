@@ -3,6 +3,8 @@ import { ref, reactive, onMounted } from 'vue'
 import type { Member, Page, Role } from '@electronic-club/shared'
 import { request, allRoles, download } from '../member-api'
 import { useAuthStore } from '../stores/auth'
+import { useRoute } from 'vue-router'
+const route = useRoute()
 const auth = useAuthStore(),
   data = ref<Page<Member> | null>(null),
   roles = ref<Role[]>([]),
@@ -68,6 +70,9 @@ async function changePage(delta: number) {
 <template>
   <p class="eyebrow">MEMBERS</p>
   <h1>成员列表</h1>
+  <p v-if="route.query.purged === '1'" class="operation-message" role="status">
+    成员已彻底删除，学号已释放。
+  </p>
   <div class="action-row">
     <RouterLink
       v-if="auth.can('members.create')"
