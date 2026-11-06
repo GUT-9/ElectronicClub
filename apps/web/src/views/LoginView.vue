@@ -52,14 +52,6 @@ async function submit() {
       <p class="login-note">
         欢迎回来，登录后参与讨论、报名活动，继续你的实践旅程。
       </p>
-      <aside class="login-browser-note" role="note">
-        <strong>请勿在 QQ、微信内置浏览器中登录</strong>
-        <p>
-          请点击右上角菜单，选择“在浏览器打开”，再使用系统浏览器、Chrome、Edge
-          或 Safari 登录。
-        </p>
-        <p>若系统浏览器仍提示会话恢复失败，请联系管理员检查网站登录配置。</p>
-      </aside>
       <form class="member-form" @submit.prevent="submit">
         <label for="student-id">学号</label
         ><input
@@ -109,21 +101,3 @@ async function submit() {
     </div>
   </section>
 </template>
-<style scoped>
-.login-browser-note {
-  padding: 13px 15px;
-  margin: 16px 0;
-  border: 1px solid #dce7f5;
-  border-radius: 8px;
-  background: #f4f8ff;
-  color: #41648c;
-  font-size: 13px;
-  line-height: 1.8;
-}
-.login-browser-note strong {
-  color: #244f88;
-}
-.login-browser-note p {
-  margin: 5px 0 0;
-}
-</style>
