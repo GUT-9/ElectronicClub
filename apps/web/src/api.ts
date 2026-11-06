@@ -54,8 +54,7 @@ export async function requestHealth(
 }
 
 export async function getHealth(): Promise<HealthResponse> {
-  const base = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-  const endpoint = new URL(`${base}${HEALTH_PATH}`, window.location.origin)
+  const endpoint = new URL(HEALTH_PATH, window.location.origin)
   // Diagnostics show only the request destination, never query strings or URL credentials.
   if (
     endpoint.username ||

@@ -70,3 +70,4 @@ await copyFile('../../docs/login-history-deploy.md', 'deploy/DEPLOY-LOGIN-HISTOR
 await copyFile('../../docs/resources-deploy.md', 'deploy/DEPLOY-RESOURCES.md')
 await copyFile('../../docs/member-purge-deploy.md', 'deploy/DEPLOY-MEMBER-PURGE.md')
 await copyFile('../../docs/event-operations-deploy.md', 'deploy/DEPLOY-EVENT-OPERATIONS.md')
+await copyFile('../../docs/same-origin-api.md', 'deploy/DEPLOY-SAME-ORIGIN.md')

@@ -9,7 +9,6 @@ export class RequestError extends Error {
     super(message)
   }
 }
-const base = (import.meta.env?.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 export async function request<T>(
   path: string,
   method = 'GET',
@@ -18,7 +17,7 @@ export async function request<T>(
   const serialized = data === undefined ? undefined : JSON.stringify(data)
   if (serialized && /^\/(events|articles|popups|forum|media|resources)(?:\/|$)/.test(path) && new TextEncoder().encode(serialized).byteLength > MAX_CONTENT_REQUEST_BYTES)
     throw new RequestError('内容请求超过64KB安全预算，请重新选择封面以自动压缩，或缩短正文；尚未提交保存。', 'PAYLOAD_TOO_LARGE', 413)
-  const response = await fetch(`${base}/api${path}`, {
+  const response = await fetch(`/api${path}`, {
     method,
     cache: 'no-store',
     credentials: 'include',
@@ -37,7 +36,7 @@ export async function request<T>(
   return body.data
 }
 export async function download(path: string, filename: string) {
-  const response = await fetch(`${base}/api${path}`, {
+  const response = await fetch(`/api${path}`, {
     credentials: 'include',
     signal: AbortSignal.timeout(60000),
   })

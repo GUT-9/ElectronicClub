@@ -1,6 +1,7 @@
 # Repository delivery policy
 
 - Maintain one business codebase for CloudBase + EdgeOne and Linux self-hosting. Keep authentication, RBAC and database behavior compatible with both.
+- Browser API, image and download requests stay same-origin under `/api`. Keep the EdgeOne edge-functions entry points, Vite development proxy and Linux Caddy routing compatible; do not restore cross-site browser session requests. Never trust forwarded client IP without platform metadata or a verified server-side signature.
 - User policy: after a **major change**, refresh the Linux deployment bundle and operations bundle, replacing their stable files in `deployment-packages/`. Do not regenerate these persistent archives for small fixes or cosmetic updates. Do not modify an unchanged component/archive.
 - Major changes include new business features, schema changes, authentication/permission architecture and deployment architecture. When completing one, increment `release/major.json` generation with a concrete reason and run `npm run release:refresh`. The CI release job also processes this intent after checks succeed. Small changes must leave this intent and the Linux/operations release artifacts unchanged.
 - `release-state.json` records component content digests. Release tooling must preserve byte-identical archives and metadata for unchanged components. CloudBase runtime delivery follows its own content digest; self-host-only changes must not replace the existing CloudBase ZIP.

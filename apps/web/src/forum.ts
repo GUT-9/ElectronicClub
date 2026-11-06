@@ -1,7 +1,7 @@
 import { FORUM_PERMISSIONS } from '@electronic-club/shared'
 export { FORUM_PERMISSIONS }
 export const forumImageUrl = (id: string) =>
-  `${(import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')}/api/forum/images/${encodeURIComponent(id)}`
+  `/api/forum/images/${encodeURIComponent(id)}`
 export const forumStatus: Record<string, string> = {
   pending: '待审核',
   published: '已发布',

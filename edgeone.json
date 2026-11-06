@@ -3,6 +3,10 @@
   "buildCommand": "npm run build -w @electronic-club/web",
   "outputDirectory": "apps/web/dist",
   "nodeVersion": "22",
+  "caches": [
+    { "source": "/api", "cacheTtl": 0 },
+    { "source": "/api/*", "cacheTtl": 0 }
+  ],
   "rewrites": [
     {
       "source": "/about",

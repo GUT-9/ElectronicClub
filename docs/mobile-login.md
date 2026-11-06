@@ -20,10 +20,10 @@
 
 ## 推荐部署方式
 
-1. 同源入口：网页与 API 都通过 `https://eclub.gut9.cn`，后端放在 `/api`。确认代理保留请求 Cookie、响应 Set-Cookie、Origin、状态码和二进制内容，并且不缓存登录/API 响应。此时前端 `VITE_API_BASE_URL` 留空，后端 `ALLOWED_ORIGIN=https://eclub.gut9.cn`、`COOKIE_SECURE=true`、`COOKIE_SAMESITE=lax`。**只有先配置并验证真实 `/api` 转发后才能将变量留空**，静态 SPA 回退不能代替 API 代理。
+1. 同源入口：网页与 API 都通过 `https://eclub.gut9.cn`，后端放在 `/api`。确认代理保留请求 Cookie、响应 Set-Cookie、Origin、状态码和二进制内容，并且不缓存登录/API 响应。新前端固定使用此入口，不再读取 `VITE_API_BASE_URL`；后端保留 `ALLOWED_ORIGIN=https://eclub.gut9.cn`、`COOKIE_SECURE=true`、`COOKIE_SAMESITE=lax`。网页与真实 `/api` 转发必须一同部署，静态 SPA 回退不能代替 API 代理。
 2. 同站点域名：使用平台支持的正式 HTTPS API 域名，例如 `https://api.gut9.cn`，前端构建变量指向这个源地址；后端仍允许精确网页 Origin，使用 Secure/Lax Cookie。跨源请求仍需正确 CORS，但不再依赖第三方站点 Cookie。需要实际配置网关域名、DNS 与证书，仅创建 DNS 别名或修改 Cookie Domain 不够。
 
-Linux 包已实现第一种方式，Caddy 同源代理 `/api`。当前 EdgeOne 配置仅含静态页面回退，**没有配置云 API 代理**；当前云版不会因下载 Linux 包或更新登录提示就自动解决跨站问题。CloudBase 正式域名、EdgeOne 外部代理能力及额度应先在实际套餐中确认，不承诺免费套餐支持，不通过代理规避默认网关使用限制。
+最新代码的 EdgeOne 边缘函数与 Linux Caddy 都实现第一种方式。前端始终访问同源 `/api`，旧 `VITE_API_BASE_URL` 不再控制请求；根目录边缘函数必须随前端一起部署，见[同源升级步骤](same-origin-api.md)。只部署旧版前端或静态 dist 不会自动修复当前云站。平台函数能力、额度和上游使用限制仍需实际账户确认，不通过代理规避默认网关使用限制。
 
 不要求成员关闭 Safari 的“防止跨站跟踪”，也不建议改用 localStorage 保存登录令牌。用户若自行禁用了所有 Cookie，需要允许本站必要的会话 Cookie；这与关闭跨站隐私防护是两回事。QQ/微信中可以先“在浏览器打开”，但如果 API 仍跨站，Safari 也可能失败。
 
@@ -37,4 +37,4 @@ Linux 包已实现第一种方式，Caddy 同源代理 `/api`。当前 EdgeOne �
 - Cookie 已发送仍401：检查后端环境、数据库会话记录、到期/撤销及网关是否丢失 Cookie；不要直接把401当成浏览器拦截。
 - 采用同站点 API 时，跨源 CORS 必须精确允许网页源并允许 credentials，不能使用 `*`；现有 Origin/JSON/请求头 CSRF 校验继续保留。
 
-修改 Vite 环境变量后必须重新构建前端。完成后分别用 iPhone Safari 与真实 QQ/微信客户端验证登录、刷新、改密、退出和重新登录；修改 User-Agent 的桌面测试不能替代这些验收。本次仅在隔离 Linux HTTPS 环境验证同源 Cookie，会话问题未在现有云生产环境实机验收。
+部署新前端与边缘函数后，分别用 iPhone Safari 与真实 QQ/微信客户端验证登录、刷新、改密、退出和重新登录；修改 User-Agent 的桌面测试不能替代这些验收。隔离环境验证同源 Cookie 不代表现有云生产环境已完成实机验收。

@@ -35,7 +35,7 @@ curl --fail http://127.0.0.1:3001/api/health
 curl --fail http://127.0.0.1:5173/api/health
 ```
 
-`.env.example` 列出全部当前配置。可将其中 `VITE_API_BASE_URL` 放入 `apps/web/.env.local`；它是公开的后端 URL，不能包含密钥。前端环境变量在构建时写入产物。生产跨域调用时将其设为 CloudBase HTTP 服务的源地址（不含 `/api/health`，不附带尾部路径）。后端 `ALLOWED_ORIGIN` 在 CloudBase 控制台设为前端源地址，例如 `https://club.example.com`，不包含尾部 `/`。本地需要这些变量时通过进程环境传入；本地后端不自动读取 `.env`。
+`.env.example` 列出当前配置。前端统一同源请求 `/api`：本地由 Vite 转发，EdgeOne 由根目录 `edge-functions/api` 转发，Linux 由 Caddy 转发。旧 `VITE_API_BASE_URL` 不再控制浏览器请求，可删除。EdgeOne 的 `API_UPSTREAM_ORIGIN` 是可选服务端固定源地址，不含 `/api`；默认沿用当前 CloudBase 网关。后端 `ALLOWED_ORIGIN` 精确填写前端源地址，不带尾部 `/`。详见[同源 API 升级](docs/same-origin-api.md)。本地后端不自动读取 `.env`。
 
 ## 目录
 
@@ -100,9 +100,9 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 
 1. 导入 GitHub 仓库，使用仓库根目录作为构建工作目录（共享 workspace 位于根目录）。
 2. 安装命令 `npm ci`，构建命令 `npm run build -w @electronic-club/web`，输出目录 `apps/web/dist`。Node 版本选择 22.12+。
-3. 设置构建变量 `VITE_API_BASE_URL=https://你的CloudBaseHTTP服务域名`，重新构建部署。成员 Cookie 登录要求前后端使用同站点自定义 HTTPS 域名（如 club.example.edu 与 api.example.edu），或可信同源代理；不同默认站点域名不能只配置 CORS 就认为可以登录。不要将 CloudBase 密钥配置为 Vite 变量。
+3. 保留根目录 `edge-functions/api/index.ts` 与 `edge-functions/api/[[path]].ts`，让平台与前端一起构建部署，不能只上传 dist 静态文件。前端统一请求官网 `/api`，旧 `VITE_API_BASE_URL` 不再生效；不需要将数据库或 CloudBase Key 加入前端。默认转发当前网关，换后端时只修改 EdgeOne 函数的 `API_UPSTREAM_ORIGIN`。登录 IP 签名的可选配置见[同源 API 升级](docs/same-origin-api.md)。
 4. 根目录已添加 `edgeone.json`，记录上述构建参数，并为 `/about`、`/resources`、`/news`、`/activities`、`/community`、`/login`、`/admin`、`/account`、`/change-password`、`/admin/*` 及三类详情路径配置到 `/index.html` 的重写。规则不覆盖 `/assets/*` 或 `/api/*`。确保平台读取仓库根配置；如控制台配置覆盖仓库配置，应同步这些参数。配置字段及路径语法已对照官方 npm 包 `edgeone@1.6.47` 核对，腾讯云线上路由仍需部署后实际刷新验证。后续新增页面需同步重写规则；`tests/edgeone-routing.test.ts` 会对照 Vue 路由检查覆盖，避免站内跳转正常而刷新404。
-5. 在部署后的首页点击页脚“检查服务连接”，验证真实前端到 CloudBase 的请求和 CORS。云部署需要腾讯云账号、环境与域名，本初始化不创建收费资源，也不声称已部署。
+5. 在部署后的首页点击页脚“检查服务连接”，实际请求应为官网 `/api/health`，响应带 `X-EClub-API-Transport: same-origin`。随后验证登录、刷新和退出；只健康200不代表登录成功。云部署需要腾讯云账号及实际平台支持，不自动创建收费资源。
 
 ## 云端与 Linux 双部署交付
 
@@ -165,11 +165,11 @@ Logo 已接入：使用用户在对话中明确确认的第二张透明背景版
 
 页脚“检查服务连接”只请求 `/api/health`，不连接数据库，不需要CLOUDBASE_APIKEY。失败时展开“连接诊断”查看实际请求地址。HTTP404、返回HTML网页、超时、网络/CORS错误会分别提示；网络错误不能仅凭浏览器fetch异常判断一定是CORS。
 
-EdgeOne **前端构建环境变量** `VITE_API_BASE_URL` 应填写后端源地址（测试时为现有CloudBase默认网关，不含 `/api` 或 `/api/health`）；修改后必须重新构建部署。留空则访问当前网站的 `/api/health`；仓库edgeone.json没有配置后端代理，静态托管本身不会处理这个接口。后端 `ALLOWED_ORIGIN=https://eclub.gut9.cn`，应无尾部斜杠；只是在函数环境中修改VITE_API_BASE_URL不会更新前端产物。
+最新版本通过 EdgeOne 边缘函数处理官网 `/api`，不再从浏览器跨站调用默认网关。旧 `VITE_API_BASE_URL` 不影响新产物；若 `/api/health` 返回404或HTML，应检查部署是否包含根目录边缘函数，不能把API回退到index.html。后端仍保留 `ALLOWED_ORIGIN=https://eclub.gut9.cn`，不带尾部 `/`。详见[部署、验收及回滚](docs/same-origin-api.md)。
 
 `CLOUDBASE_APIKEY`是本项目自定义的后端配置名，不是控制台内置选项。目前尚未验证该环境的Key获取与SQL角色授权方式；不要把管理员密码填进去。数据库连接与前端健康检查需分别验收。默认网关仅限开发测试，不能据此宣称正式生产登录或跨站Cookie可用。
 
-跨站联调：若登录200而me401，现有Lax Cookie不会在官网到默认API的跨站fetch中发送。新包支持显式 `COOKIE_SAMESITE=none`，必须配合Secure及精确HTTPS Origin；默认仍Lax，CSRF保留。现代浏览器可能继续禁止第三方Cookie，正式API域名限制也仍存在。详见[跨站联调说明](docs/cloudbase-https-runtime.md)及[Safari/QQ登录与Cookie核对](docs/mobile-login.md)。
+最新同源入口适用默认 Secure/HttpOnly/SameSite=Lax Cookie，无需关闭 Safari 跨站跟踪防护。已有 `COOKIE_SAMESITE=none` 也能经同源入口工作，可在迁移完成后恢复lax。旧版跨站产物仍可能被第三方Cookie策略拦截，历史联调说明不代表推荐架构；详见[Safari/QQ登录与Cookie核对](docs/mobile-login.md)。
 
 ## 第三阶段（已包含于main）
 

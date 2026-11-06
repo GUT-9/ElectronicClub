@@ -1,4 +1,5 @@
 import { isIP } from 'node:net'
+import { createHmac, timingSafeEqual } from 'node:crypto'
 export interface LoginMetadata {
   memberUid: string | null
   ip: string | null
@@ -19,6 +20,36 @@ function ip(value: unknown) {
   const candidate = value.trim()
   return candidate.length <= 64 && isIP(candidate) ? candidate : null
 }
+// Optional authenticated metadata from our EdgeOne entry point. Plain forwarded
+// headers never override gateway metadata. The key is server-side on both ends.
+export function signedProxyIp(
+  headers: Record<string, string | undefined>,
+  now = Date.now(),
+) {
+  const key = process.env.ECLUB_PROXY_SECRET,
+    address = ip(headers['x-eclub-client-ip']),
+    timestamp = headers['x-eclub-proxy-time'],
+    signature = headers['x-eclub-proxy-signature']
+  if (
+    !key ||
+    !/^[a-f0-9]{64}$/i.test(key) ||
+    !address ||
+    !timestamp ||
+    !/^\d{13}$/.test(timestamp) ||
+    Math.abs(now - Number(timestamp)) > 60_000 ||
+    !signature ||
+    !/^[a-f0-9]{64}$/i.test(signature)
+  )
+    return null
+  const expected = createHmac('sha256', key)
+    .update(
+      `eclub-proxy-ip-v1\n${timestamp}\n${address}\n${headers['user-agent'] ?? ''}`,
+    )
+    .digest()
+  return timingSafeEqual(expected, Buffer.from(signature, 'hex'))
+    ? address
+    : null
+}
 export function loginContext(
   context:
     | {
@@ -29,11 +60,17 @@ export function loginContext(
     | undefined,
   headers: Record<string, string | undefined>,
 ): LoginContext {
+  const signed = signedProxyIp(headers)
   let address =
+    signed ||
     ip(context?.sourceIp) ||
     ip(context?.http?.sourceIp) ||
     ip(context?.identity?.sourceIp)
-  let ipSource: LoginContext['ipSource'] = address ? 'gateway' : 'unavailable'
+  let ipSource: LoginContext['ipSource'] = signed
+    ? 'trusted-header'
+    : address
+      ? 'gateway'
+      : 'unavailable'
   // Opt-in only after the HTTP gateway strips and overwrites this header.
   // Raw client X-Forwarded-For is otherwise untrusted.
   const trusted = process.env.LOGIN_TRUSTED_IP_HEADER

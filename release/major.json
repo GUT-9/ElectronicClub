@@ -1,4 +1,4 @@
 {
-  "generation": 1,
-  "reason": "Initial Linux deployment and encrypted operations toolkit; one codebase with dual deployment CI"
+  "generation": 2,
+  "reason": "Same-origin EdgeOne API entry point and authenticated proxy login metadata; preserve shared CloudBase/Linux authentication"
 }

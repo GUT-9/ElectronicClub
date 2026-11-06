@@ -5,9 +5,8 @@ import {
 } from '@electronic-club/shared'
 import { coverFile, inlineImageBytes } from './cover'
 import { request } from './member-api'
-const base = () => (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
 export const mediaUrl = (id: string) =>
-  `${base()}/api/media/${encodeURIComponent(id)}`
+  `/api/media/${encodeURIComponent(id)}`
 export function imageSource(value: string) {
   const id = mediaReference(value)
   return id
