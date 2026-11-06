@@ -136,7 +136,7 @@ test('proxy rejects invalid JSON UTF-8 before forwarding and uses ArrayBuffer fo
     fetcher,
   )
   assert.equal(response.status, 200)
-  assert.equal(response.headers.get('x-eclub-api-revision'), 'secret-text-v3')
+  assert.equal(response.headers.get('x-eclub-api-revision'), 'four-digit-v4')
   assert.ok(binary instanceof ArrayBuffer)
   assert.deepEqual(new Uint8Array(binary), new Uint8Array([0, 128, 255]))
 })
@@ -153,6 +153,9 @@ test('proxy secret normalization supports copied configuration and rejects malfo
   ])
     assert.equal(normalizeProxySecret(value), secret)
   assert.equal(normalizeProxySecret('A'.repeat(64)), 'A'.repeat(64))
+  assert.equal(normalizeProxySecret('1234'), '1234')
+  assert.equal(normalizeProxySecret('0012'), '0012')
+  assert.equal(normalizeProxySecret(' ECLUB_PROXY_SECRET = "1234"\r\n'), '1234')
   for (const value of [
     undefined,
     null,
@@ -163,6 +166,9 @@ test('proxy secret normalization supports copied configuration and rejects malfo
     'a'.repeat(63),
     'a'.repeat(65),
     'g'.repeat(64),
+    '123',
+    '12345',
+    '12a4',
     'OTHER_KEY=' + secret,
     '"' + secret + "'",
   ])
@@ -198,6 +204,41 @@ test('edge and backend normalize independent pasted wrappers before verifying IP
       )
       assert.equal(response.status, 200)
       assert.equal(accepted, '203.0.113.31')
+    }
+  } finally {
+    if (previous === undefined) delete process.env.ECLUB_PROXY_SECRET
+    else process.env.ECLUB_PROXY_SECRET = previous
+  }
+})
+
+test('four-digit proxy keys interoperate, preserve leading zeroes and reject mismatched signatures', async () => {
+  const previous = process.env.ECLUB_PROXY_SECRET
+  try {
+    for (const key of ['1234', '0012']) {
+      process.env.ECLUB_PROXY_SECRET = ` "${key}"\n`
+      let accepted: string | null = null,
+        mismatched: string | null = 'not checked'
+      const response = await proxyApi(
+        {
+          request: new Request(origin + '/api/auth/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: '{}',
+          }),
+          env: { ECLUB_PROXY_SECRET: key },
+          eo: { clientIp: '203.0.113.32' },
+        },
+        async (_url, options) => {
+          const headers = Object.fromEntries(new Headers(options!.headers))
+          accepted = signedProxyIp(headers)
+          process.env.ECLUB_PROXY_SECRET = '9876'
+          mismatched = signedProxyIp(headers)
+          return new Response('{}')
+        },
+      )
+      assert.equal(response.status, 200)
+      assert.equal(accepted, '203.0.113.32')
+      assert.equal(mismatched, null)
     }
   } finally {
     if (previous === undefined) delete process.env.ECLUB_PROXY_SECRET
@@ -397,7 +438,7 @@ test('same-origin login, refresh, RBAC, CSRF and logout work through the real ha
     ALLOWED_ORIGIN: origin,
     COOKIE_SECURE: 'true',
     COOKIE_SAMESITE: 'lax',
-    ECLUB_PROXY_SECRET: secret,
+    ECLUB_PROXY_SECRET: '1234',
   })
   const store = new MemoryStore(),
     service = new MemberService(store)
@@ -436,7 +477,7 @@ test('same-origin login, refresh, RBAC, CSRF and logout work through the real ha
           },
           body: data === undefined ? undefined : JSON.stringify(data),
         }),
-        env: { ECLUB_PROXY_SECRET: secret },
+        env: { ECLUB_PROXY_SECRET: '1234' },
         eo: { clientIp: '203.0.113.5' },
       },
       bridge,

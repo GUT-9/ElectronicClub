@@ -17,7 +17,7 @@ const methods = new Set([
   'OPTIONS',
 ])
 const maxBody = 3_100_000
-const revision = 'secret-text-v3'
+const revision = 'four-digit-v4'
 function failure(status: number, code: string, message: string) {
   return new Response(
     JSON.stringify({ success: false, error: { code, message } }),
@@ -131,7 +131,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
     return failure(
       503,
       'API_PROXY_SECRET_FORMAT',
-      'EdgeOne 的 ECLUB_PROXY_SECRET 值格式不正确，请填写完整的64位十六进制密钥',
+      'EdgeOne 的 ECLUB_PROXY_SECRET 请填写4位数字，并与云函数中的值保持一致',
     )
   if (secret) {
     const ip = context.eo?.clientIp?.trim()
