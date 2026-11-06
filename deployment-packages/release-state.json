@@ -1,9 +1,9 @@
 {
   "generation": 2,
   "cloud": {
-    "digest": "8c379a081d35607dc76792889084e5f9773a8ee126daf7d784fbc98a9af78e80",
-    "sha256": "e67969a5b054964b3580814940a2a10eb265f016acf71f9fca12133cbb681202",
-    "sourceCommit": "c7cebd83f8f78d1484139b0da6a0f5792d1f5a9d"
+    "digest": "6157a0cfbd73694de02ecc739fc01ff4ab4fc148b3705cbb87054cbb8270958c",
+    "sha256": "7f348cbba061386abeed81f9ac1ef1b33bd9055e1b9d3abbf4bcbae1f030c80f",
+    "sourceCommit": "56090f97aaebad10dc37389b3ca9036c8c207e86"
   },
   "linux": {
     "digest": "29cd7fc8cb799b75952c3395d7f17277c2232eb9a183fab5e29ccdc6af756f6f",
