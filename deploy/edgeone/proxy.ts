@@ -16,6 +16,7 @@ const methods = new Set([
   'OPTIONS',
 ])
 const maxBody = 3_100_000
+const revision = 'json-text-v2'
 function failure(status: number, code: string, message: string) {
   return new Response(
     JSON.stringify({ success: false, error: { code, message } }),
@@ -27,6 +28,7 @@ function failure(status: number, code: string, message: string) {
         'CDN-Cache-Control': 'no-store',
         'X-Content-Type-Options': 'nosniff',
         'X-EClub-API-Transport': 'same-origin',
+        'X-EClub-API-Revision': revision,
       },
     },
   )
@@ -160,10 +162,32 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
   }
   if (Number(request.headers.get('content-length')) > maxBody)
     return failure(413, 'BODY_TOO_LARGE', '请求体过大')
-  const body = ['GET', 'HEAD'].includes(request.method)
+  const bytes = ['GET', 'HEAD'].includes(request.method)
     ? undefined
     : await bodyBytes(request)
-  if (body === null) return failure(413, 'BODY_TOO_LARGE', '请求体过大')
+  if (bytes === null) return failure(413, 'BODY_TOO_LARGE', '请求体过大')
+  let body: string | ArrayBuffer | undefined
+  if (bytes !== undefined) {
+    if (
+      (headers.get('content-type') ?? '')
+        .toLowerCase()
+        .startsWith('application/json')
+    ) {
+      try {
+        // Node fetch accepts Uint8Array, but edge runtimes/gateways may treat it
+        // as binary or coerce it to a comma-separated list of byte values.
+        // Forward JSON as UTF-8 text exactly once, without JSON.stringify.
+        body = new TextDecoder('utf-8', {
+          fatal: true,
+          ignoreBOM: true,
+        }).decode(bytes)
+      } catch {
+        return failure(400, 'INVALID_JSON', 'JSON正文必须使用有效的UTF-8编码')
+      }
+    } else {
+      body = bytes.buffer
+    }
+  }
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 55_000)
   try {
@@ -196,6 +220,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
     responseHeaders.set('CDN-Cache-Control', 'no-store')
     responseHeaders.set('Surrogate-Control', 'no-store')
     responseHeaders.set('X-EClub-API-Transport', 'same-origin')
+    responseHeaders.set('X-EClub-API-Revision', revision)
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,

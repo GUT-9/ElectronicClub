@@ -1,5 +1,7 @@
 # 同源 API 登录修复与完整部署包
 
+最新小修：[EdgeOne登录JSON正文兼容补丁](../docs/edgeone-json-body-fix.md)。**本次无需SQL、无需重新上传云函数ZIP、无需修改环境变量，仅重新部署EdgeOne最新main（包含根目录edge-functions）。** 补丁生效后响应头带 `X-EClub-API-Revision: json-text-v2`。下方ZIP及其来源仍为已有CloudBase版本，保持原文件；下面的完整升级清单适用于尚未完成首次同源升级的环境。
+
 源码提交 `59db3f9e038d07377dbb8a1d3f29a7e9bb4740bd`。浏览器统一请求官网 `/api`，由根目录 EdgeOne 边缘函数转发到现有后端，处理 Safari/QQ 的跨站 Cookie 问题；登录、RBAC、成员、导入、活动、报名、签到、论坛、公告、正文图片及七牛资料库 API 均保留。
 
 ## 本次现有云环境操作清单

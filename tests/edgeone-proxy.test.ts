@@ -43,6 +43,7 @@ test('same-origin proxy fixes the destination, keeps query/method/body/CSRF, and
       assert.equal(headers.get('origin'), origin)
       assert.equal(headers.get('x-requested-with'), 'ElectronicClub')
       assert.equal(headers.get('cookie'), '__Host-ec-session=testToken_123')
+      assert.equal(typeof options!.body, 'string')
       for (const name of [
         'authorization',
         'x-forwarded-for',
@@ -58,6 +59,85 @@ test('same-origin proxy fixes the destination, keeps query/method/body/CSRF, and
   assert.equal(response.status, 403)
   assert.equal(response.headers.get('cache-control'), 'no-store')
   assert.equal(response.headers.get('cdn-cache-control'), 'no-store')
+})
+
+test('edge fetch receives exact UTF-8 JSON text even when incoming multibyte characters cross stream chunks', async () => {
+  const json = JSON.stringify({
+    studentId: '00TRANSPORT',
+    password: 'Quote"Slash\\中文🙂',
+    title: '活动正文与换行\n第二行',
+  })
+  const bytes = new TextEncoder().encode(json)
+  let cursor = 0,
+    forwarded: unknown
+  const stream = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (cursor === bytes.length) return controller.close()
+      // Three-byte slices deliberately split Chinese and emoji UTF-8 sequences.
+      const end = Math.min(cursor + 3, bytes.length)
+      controller.enqueue(bytes.subarray(cursor, end))
+      cursor = end
+    },
+  })
+  const response = await proxyApi(
+    {
+      request: new Request(origin + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json; charset=utf-8' },
+        body: stream,
+        duplex: 'half',
+      } as RequestInit),
+    },
+    async (_url, options) => {
+      forwarded = options!.body
+      // Deliberately do not let Node's Response constructor normalize a TypedArray:
+      // the edge-runtime boundary must already receive portable JSON text.
+      if (typeof forwarded !== 'string')
+        return new Response('invalid body type', { status: 400 })
+      assert.equal(forwarded, json)
+      assert.deepEqual(JSON.parse(forwarded), JSON.parse(json))
+      return new Response('{}')
+    },
+  )
+  assert.equal(response.status, 200)
+  assert.equal(typeof forwarded, 'string')
+})
+
+test('proxy rejects invalid JSON UTF-8 before forwarding and uses ArrayBuffer for non-JSON bodies', async () => {
+  let calls = 0,
+    binary: unknown
+  const fetcher: typeof fetch = async (_url, options) => {
+    calls++
+    binary = options!.body
+    return new Response('{}')
+  }
+  const invalid = await proxyApi(
+    {
+      request: new Request(origin + '/api/test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: new Uint8Array([0x7b, 0x22, 0xff, 0x22, 0x7d]),
+      }),
+    },
+    fetcher,
+  )
+  assert.equal(invalid.status, 400)
+  assert.equal((await invalid.json()).error.code, 'INVALID_JSON')
+  assert.equal(calls, 0)
+  const response = await proxyApi(
+    {
+      request: new Request(origin + '/api/test', {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: new Uint8Array([0, 128, 255]),
+      }),
+    },
+    fetcher,
+  )
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('x-eclub-api-revision'), 'json-text-v2')
+  assert.ok(binary instanceof ArrayBuffer)
+  assert.deepEqual(new Uint8Array(binary), new Uint8Array([0, 128, 255]))
 })
 
 test('proxy preserves secure session cookies, deletion, binary downloads and error status without caching or redirecting', async () => {
