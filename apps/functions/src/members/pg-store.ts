@@ -1,3 +1,4 @@
+import {LOGIN_HISTORY_SQL,validateLoginQuery} from './login-query'
 import {EXPIRED_MEDIA_SQL,validateExpired} from '../media/query'
 import {ACCESS_SQL,validateAccessQuery} from './access-query'
 import { FORUM_TABLES, forumSelect, validateForumQuery } from '../forum/query'
@@ -183,6 +184,7 @@ export class PgStore implements Store {
     options: ListOptions,
   ) {
     await this.verifyRole()
+    if(c==='login_history'){validateLoginQuery(filter,options);return (await this.pool.query(LOGIN_HISTORY_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}
     if(c==='media_expired'){validateExpired(filter,options);return (await this.pool.query(EXPIRED_MEDIA_SQL,[filter.before,options.limit])).rows[0].result as {items:T[];total:number}}
     if(c==='access_members'){validateAccessQuery(filter,options);return (await this.pool.query(ACCESS_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}
     if (c.startsWith('forum_') || filter._forumAudit === true) {

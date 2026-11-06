@@ -81,6 +81,12 @@ const sections = computed(() =>
           visible: auth.can('roles.read'),
         },
         {
+          to: '/admin/login-history',
+          name: '登录记录',
+          detail: '查看成员登录时间、IP 与设备信息',
+          visible: auth.can('security.logins.read'),
+        },
+        {
           to: '/admin/audit',
           name: '操作审计',
           detail: '追踪管理操作与授权变更',

@@ -1,3 +1,4 @@
+import {memoryLoginList} from './login-query'
 import {validateExpired} from '../media/query'
 import {memoryAccessList} from './access-query'
 import { memoryForumList } from '../forum/memory-query'
@@ -18,6 +19,10 @@ export class MemoryStore implements Store {
         get: async <T>(c: string, id: string) =>
           structuredClone(copy.get(`${c}/${id}`) ?? null) as T | null,
         set: async (c, id, value) => {
+          // Mirror the production login-privacy trigger in this local/test adapter.
+          if(c==='users'&&(value as {anonymizedAt?:string}).anonymizedAt&&!(copy.get(`${c}/${id}`) as {anonymizedAt?:string})?.anonymizedAt){
+            for(const [key,entry] of copy){const log=entry as {action?:string;actor?:string;login?:{memberUid?:string}};if(key.startsWith('audit_logs/')&&log.login&&(log.login.memberUid===id||log.action==='auth.login'&&log.actor===id)){const next={...log};delete next.login;copy.set(key,next)}}
+          }
           copy.set(`${c}/${id}`, structuredClone(value))
         },
         remove: async (c, id) => {
@@ -36,6 +41,7 @@ export class MemoryStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
+    if(collection==='login_history')return memoryLoginList<T>(this.data,filter,options)
     if(collection==='media_expired'){validateExpired(filter,options);const items=[...this.data.entries()].filter(([key])=>key.startsWith('media_images/')).map(([,v])=>v as {bindings:unknown[];createdAt:string}).filter(v=>!v.bindings.length&&v.createdAt<String(filter.before)).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).slice(0,options.limit);return {items:structuredClone(items) as T[],total:items.length}}
     if(collection==='access_members')return memoryAccessList<T>(this.data,filter,options)
     if (collection.startsWith('forum_') || filter._forumAudit === true) return memoryForumList<T>(collection, filter, options, this.data)

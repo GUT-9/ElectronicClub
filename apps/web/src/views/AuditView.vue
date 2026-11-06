@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import type { AuditLog, Page } from '@electronic-club/shared'
-import {beijing} from '../stage3'
+import { beijing } from '../stage3'
+import { useAuthStore } from '../stores/auth'
 import { request } from '../member-api'
+const auth = useAuthStore()
 const page = ref(1),
   data = ref<Page<AuditLog> | null>(null),
   error = ref(''),
@@ -28,6 +30,12 @@ async function changePage(delta: number) {
   <p class="eyebrow">AUDIT TRAIL</p>
   <h1>操作审计</h1>
   <p>记录操作者 UID、操作、目标与字段名称；不记录密码或完整个人资料。</p>
+  <RouterLink
+    v-if="auth.can('security.logins.read')"
+    to="/admin/login-history"
+    class="text-link"
+    >查询成员姓名、登录 IP 与设备信息 →</RouterLink
+  >
   <p v-if="error" role="alert">{{ error }}</p>
   <div class="table-scroll" v-if="data">
     <table class="data-table">

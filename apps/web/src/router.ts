@@ -51,9 +51,21 @@ export const router = createRouter({
           component: () => import('./views/ForumIndexView.vue'),
           meta: { title: '电子社区' },
         },
-        {path:'community/new',component:()=>import('./views/ForumEditorView.vue'),meta:{title:'发布帖子',auth:true}},
-        {path:'community/me',component:()=>import('./views/ForumMeView.vue'),meta:{title:'我的社区',auth:true}},
-        {path:'community/:id/edit',component:()=>import('./views/ForumEditorView.vue'),meta:{title:'编辑帖子',auth:true}},
+        {
+          path: 'community/new',
+          component: () => import('./views/ForumEditorView.vue'),
+          meta: { title: '发布帖子', auth: true },
+        },
+        {
+          path: 'community/me',
+          component: () => import('./views/ForumMeView.vue'),
+          meta: { title: '我的社区', auth: true },
+        },
+        {
+          path: 'community/:id/edit',
+          component: () => import('./views/ForumEditorView.vue'),
+          meta: { title: '编辑帖子', auth: true },
+        },
         {
           path: 'community/:id',
           component: () => import('./views/ForumDetailView.vue'),
@@ -86,7 +98,11 @@ export const router = createRouter({
       component: () => import('./layouts/AdminLayout.vue'),
       meta: { auth: true },
       children: [
-        {path:'forum',component:()=>import('./views/ForumAdminView.vue'),meta:{title:'电子社区管理',forumAdmin:true}},
+        {
+          path: 'forum',
+          component: () => import('./views/ForumAdminView.vue'),
+          meta: { title: '电子社区管理', forumAdmin: true },
+        },
         {
           path: 'events',
           component: () => import('./views/Stage3AdminView.vue'),
@@ -144,6 +160,11 @@ export const router = createRouter({
           meta: { title: '权限查询', permission: 'roles.read' },
         },
         {
+          path: 'login-history',
+          component: () => import('./views/LoginHistoryView.vue'),
+          meta: { title: '登录记录', permission: 'security.logins.read' },
+        },
+        {
           path: 'audit',
           component: () => import('./views/AuditView.vue'),
           meta: { title: '操作审计', permission: 'audit.read' },
@@ -171,7 +192,8 @@ router.beforeEach(async (to) => {
     if (to.path === '/login' && auth.member) return '/account'
     if (to.meta.permission && !auth.can(String(to.meta.permission)))
       return '/account'
-    if (to.meta.forumAdmin && !FORUM_PERMISSIONS.some(auth.can)) return '/account'
+    if (to.meta.forumAdmin && !FORUM_PERMISSIONS.some(auth.can))
+      return '/account'
     if (
       to.meta.admin &&
       ![
@@ -182,6 +204,7 @@ router.beforeEach(async (to) => {
         'roles.read',
         'roles.assign',
         'audit.read',
+        'security.logins.read',
         'events.registrations.read',
         'events.registrations.review',
         'events.registrations.export',

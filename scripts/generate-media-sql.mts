@@ -46,7 +46,10 @@ REVOKE ALL ON FUNCTION public.ec_media_expired(text,integer) FROM PUBLIC;
 DO $$ DECLARE browser_role text; BEGIN FOR browser_role IN SELECT rolname FROM pg_roles WHERE rolname IN ('anon','authenticated') LOOP EXECUTE format('REVOKE ALL ON FUNCTION public.ec_media_expired(text,integer) FROM %I',browser_role); END LOOP; END $$;
 GRANT EXECUTE ON FUNCTION public.ec_media_expired(text,integer) TO service_role;
 `
-for (const p of permissionDefinitions)
+// Freeze 011's original catalogue; newer permissions belong to later migrations.
+for (const p of permissionDefinitions.filter(
+  (p) => p.id !== 'security.logins.read',
+))
   sql += `UPDATE electronicclub.permissions SET data=data||'${JSON.stringify(p).replaceAll("'", "''")}'::jsonb WHERE id='${p.id}';\n`
 sql += `INSERT INTO electronicclub.schema_migrations(version) VALUES('011-content-media') ON CONFLICT DO NOTHING;
 NOTIFY pgrst,'reload schema';

@@ -668,6 +668,7 @@ test(
             'SELECT public.ec_list($1,$2,$3,$4) AS value',
             [args.p_collection, args.p_filter, args.p_offset, args.p_limit],
           ],
+          ec_login_history:['SELECT public.ec_login_history($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_media_expired: ['SELECT public.ec_media_expired($1,$2) AS value',[args.p_before,args.p_limit]],
           ec_access_members: ['SELECT public.ec_access_members($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_forum_list: ['SELECT public.ec_forum_list($1,$2,$3,$4) AS value',[args.p_collection,args.p_filter,args.p_offset,args.p_limit]],
@@ -783,6 +784,15 @@ test(
       await mediaSuite(service,store,login.token!)
       const cleanupFilter={before:'2000-01-01T00:00:00.000Z'}
       assert.deepEqual(await store.list('media_expired',cleanupFilter,{offset:0,limit:20}),await new PgStore(owner).list('media_expired',cleanupFilter,{offset:0,limit:20}))
+      const loginBefore=await snapshot()
+      const loginSql=await readFile('cloudbase/sql/012-login-history.sql','utf8')
+      await owner.query(loginSql)
+      await owner.query(loginSql)
+      assert.deepEqual(await snapshot(),loginBefore,'login migration cannot change existing accounts, roles or content')
+      for(const role of ['anon','authenticated'] as const)await assert.rejects(()=>asRole(role,"SELECT public.ec_login_history('{}',0,20)"),(e:unknown)=>(e as {code:string}).code==='42501')
+      const {loginHistorySuite}=await import('./helpers/login-history-suite')
+      await loginHistorySuite(service,store,login.token!)
+      assert.deepEqual(await store.list('login_history',{outcome:'success'},{offset:0,limit:20}),await new PgStore(owner).list('login_history',{outcome:'success'},{offset:0,limit:20}))
       const {forumSuite}=await import('./helpers/forum-suite')
       let forumNow=Date.now()
       await forumSuite(new MemberService(store,()=>forumNow),store,login.token!,ms=>forumNow+=ms)

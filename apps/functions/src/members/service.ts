@@ -1,3 +1,5 @@
+import { safeLoginContext } from './login-context'
+import type { LoginContext, LoginMetadata } from './login-context'
 import { MediaService } from '../media/service'
 import { permissionGroup } from '@electronic-club/shared'
 import { ForumService } from '../forum/service'
@@ -87,15 +89,17 @@ export class MemberService {
     action: string,
     target: string,
     fields: string[] = [],
+    login?: LoginMetadata,
   ) {
     const id = randomUUID()
-    const log: AuditLog = {
+    const log: AuditLog & { login?: LoginMetadata } = {
       id,
       actor,
       action,
       target,
       fields,
       createdAt: this.now(),
+      ...(login ? { login } : {}),
     }
     await tx.set('audit_logs', id, log)
   }
@@ -300,7 +304,9 @@ export class MemberService {
               ? permissionDefinitions.map((p) => p.id)
               : i === 1
                 ? permissionDefinitions
-                    .filter((p) => p.implemented)
+                    .filter(
+                      (p) => p.implemented && p.id !== 'security.logins.read',
+                    )
                     .map((p) => p.id)
                 : [],
           memberCount: 0,
@@ -327,7 +333,11 @@ export class MemberService {
       return user
     })
   }
-  async login(input: unknown, ip: string): Promise<Result> {
+  async login(input: unknown, source: string | LoginContext): Promise<Result> {
+    const context = safeLoginContext(source)
+    const ip =
+      context.ip ??
+      (typeof source === 'string' ? source : 'gateway-unavailable')
     const body = z
       .object({
         studentId: studentIdSchema,
@@ -342,18 +352,40 @@ export class MemberService {
         [`ip:${ip}`, 200],
       ] as const) {
         const id = digest(key)
-        let rate = await tx.get<{ count: number; until: number }>(
-          'login_limits',
-          id,
-        )
+        let rate = await tx.get<{
+          count: number
+          until: number
+          reported?: boolean
+        }>('login_limits', id)
         if (!rate || rate.until <= this.clock())
           rate = { count: 0, until: this.clock() + 15 * 60_000 }
-        if (rate.count >= limit)
+        if (rate.count >= limit) {
+          if (!rate.reported) {
+            await this.audit(
+              tx,
+              'anonymous',
+              'auth.login_blocked',
+              'redacted',
+              [],
+              {
+                ...context,
+                memberUid: null,
+                outcome: 'blocked',
+                reason: 'RATE_LIMITED',
+              },
+            )
+            await tx.set('login_limits', id, {
+              ...rate,
+              reported: true,
+              createdAt: this.now(),
+            })
+          }
           return failure(
             429,
             'RATE_LIMITED',
             '登录尝试过于频繁，请15分钟后再试',
           )
+        }
         rate.count++
         await tx.set('login_limits', id, { ...rate, createdAt: this.now() })
       }
@@ -367,18 +399,37 @@ export class MemberService {
         : null
       const valid = await verifyPassword(body.password, credential?.hash ?? '')
       if (!user || user.status !== 'active' || !valid) {
-        await this.audit(tx, 'anonymous', 'auth.login_failed', 'redacted')
+        await this.audit(tx, 'anonymous', 'auth.login_failed', 'redacted', [], {
+          ...context,
+          memberUid: user?.uid ?? null,
+          outcome: 'failure',
+          reason: 'INVALID_CREDENTIALS',
+        })
         return failure(401, 'INVALID_CREDENTIALS', '学号、密码错误或账号不可用')
       }
       if (
         user.mustChangePassword &&
         Date.parse(user.activationExpiresAt) <= this.clock()
-      )
+      ) {
+        await this.audit(
+          tx,
+          'anonymous',
+          'auth.login_blocked',
+          'redacted',
+          [],
+          {
+            ...context,
+            memberUid: user.uid,
+            outcome: 'blocked',
+            reason: 'ACTIVATION_EXPIRED',
+          },
+        )
         return failure(
           401,
           'ACTIVATION_EXPIRED',
           '初始凭据已过期，请联系管理员重置',
         )
+      }
       await tx.set('login_limits', digest(`account:${body.studentId}`), {
         count: 0,
         until: this.clock() + 15 * 60_000,
@@ -394,7 +445,12 @@ export class MemberService {
         expiresAt,
         idleExpiresAt: Math.min(expiresAt, this.clock() + 30 * 60_000),
       })
-      await this.audit(tx, user.uid, 'auth.login', user.uid)
+      await this.audit(tx, user.uid, 'auth.login', user.uid, [], {
+        ...context,
+        memberUid: user.uid,
+        outcome: 'success',
+        reason: '',
+      })
       return { data: await this.identity(tx, user), token }
     })
   }
@@ -1096,6 +1152,45 @@ export class MemberService {
           ])
           return { data: job }
         }
+        if (path === '/api/login-history' && method === 'GET') {
+          this.require(ctx, 'security.logins.read')
+          const options = z
+            .object({
+              page: z.coerce.number().int().min(1).max(10000).default(1),
+              pageSize: z.coerce.number().int().min(1).max(50).default(20),
+              search: z.string().trim().max(80).default(''),
+              outcome: z
+                .enum(['all', 'success', 'failure', 'blocked'])
+                .default('all'),
+              from: z.string().datetime({ offset: true }).optional(),
+              to: z.string().datetime({ offset: true }).optional(),
+            })
+            .strict()
+            .parse(query)
+          ensure(
+            !options.from ||
+              !options.to ||
+              Date.parse(options.from) < Date.parse(options.to),
+            400,
+            'INVALID_DATE_RANGE',
+            '结束日期须晚于开始日期',
+          )
+          const filter = {
+            search: options.search,
+            outcome: options.outcome,
+            ...(options.from
+              ? { from: new Date(options.from).toISOString() }
+              : {}),
+            ...(options.to ? { to: new Date(options.to).toISOString() } : {}),
+          }
+          const result = await this.store.list('login_history', filter, {
+            offset: (options.page - 1) * options.pageSize,
+            limit: options.pageSize,
+          })
+          return {
+            data: { ...result, page: options.page, pageSize: options.pageSize },
+          }
+        }
         if (path === '/api/audit' && method === 'GET') {
           this.require(ctx, 'audit.read')
           const page = z.coerce
@@ -1104,12 +1199,22 @@ export class MemberService {
             .min(1)
             .max(10000)
             .parse(query.page ?? 1)
-          const result = await this.store.list<AuditLog>(
+          const result = await this.store.list<AuditLog & { login?: unknown }>(
             'audit_logs',
             {},
             { offset: (page - 1) * 50, limit: 50 },
           )
-          return { data: { ...result, page, pageSize: 50 } }
+          return {
+            data: {
+              ...result,
+              items: result.items.map(({ login: _login, ...record }) => {
+                void _login
+                return record
+              }),
+              page,
+              pageSize: 50,
+            },
+          }
         }
         throw new ApiError(404, 'NOT_FOUND', '接口不存在')
       },

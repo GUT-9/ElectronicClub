@@ -33,6 +33,7 @@ export function permissionGroup(id: string): string {
     return ['members.password', 'members.status', 'members.delete'].includes(id)
       ? '账号与安全'
       : '成员资料'
+  if (id === 'security.logins.read') return '账号与安全'
   if (id.startsWith('roles.')) return '角色与授权'
   if (id.startsWith('events.registrations.')) return '报名管理'
   if (id.startsWith('events.checkin.')) return '活动签到'

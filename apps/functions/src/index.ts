@@ -1,3 +1,4 @@
+import { loginContext } from './members/login-context'
 import { sessionCookie, sessionCookieConfig } from './members/cookie'
 import { randomUUID } from 'node:crypto'
 import { DatabaseFailure } from './members/pg-store'
@@ -14,7 +15,11 @@ export interface HttpEvent {
   body?: string
   isBase64Encoded?: boolean
   queryStringParameters?: Record<string, string>
-  requestContext?: { sourceIp?: string }
+  requestContext?: {
+    sourceIp?: string
+    http?: { sourceIp?: string }
+    identity?: { sourceIp?: string }
+  }
 }
 export interface HttpResult {
   statusCode: number
@@ -72,7 +77,7 @@ export function createHandler(resolveService: () => MemberService) {
     }
     // Unknown public routes preserve 404 without forcing database initialization.
     if (
-      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups|forum|media)(?:\/|$)/.test(
+      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups|forum|media|login-history)(?:\/|$)/.test(
         path,
       )
     )
@@ -240,7 +245,7 @@ export function createHandler(resolveService: () => MemberService) {
         path === '/api/auth/login' && method === 'POST'
           ? await service.login(
               input,
-              event.requestContext?.sourceIp ?? 'gateway-unavailable',
+              loginContext(event.requestContext, requestHeaders),
             )
           : await service.execute(
               token,

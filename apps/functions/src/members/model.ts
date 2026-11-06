@@ -108,6 +108,7 @@ export const permissionDefinitions = [
   ['roles.read', '角色与权限查询', '权限'],
   ['roles.assign', '分配成员角色', '权限'],
   ['roles.manage', '创建及管理角色', '权限'],
+  ['security.logins.read','登录记录查询','账号与安全'],
   ['audit.read', '审计日志查询', '系统'],
   ['events.create', '创建活动', '活动'],
   ['events.edit', '编辑全部活动/分配负责人', '活动'],

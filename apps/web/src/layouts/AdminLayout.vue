@@ -22,7 +22,12 @@ const navGroups = computed(() =>
     },
     {
       name: '权限与安全',
-      paths: ['/admin/roles', '/admin/permissions', '/admin/audit'],
+      paths: [
+        '/admin/roles',
+        '/admin/permissions',
+        '/admin/audit',
+        '/admin/login-history',
+      ],
     },
   ]
     .map((g) => ({
@@ -55,6 +60,11 @@ const links = computed(() =>
     },
     { to: '/admin/roles', label: '角色管理', permission: 'roles.read' },
     { to: '/admin/permissions', label: '权限查询', permission: 'roles.read' },
+    {
+      to: '/admin/login-history',
+      label: '登录记录',
+      permission: 'security.logins.read',
+    },
     { to: '/admin/audit', label: '操作审计', permission: 'audit.read' },
   ].filter((item) =>
     item.to === '/admin/forum'
