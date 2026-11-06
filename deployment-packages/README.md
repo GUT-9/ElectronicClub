@@ -2,6 +2,16 @@
 
 源码提交 `59db3f9e038d07377dbb8a1d3f29a7e9bb4740bd`。浏览器统一请求官网 `/api`，由根目录 EdgeOne 边缘函数转发到现有后端，处理 Safari/QQ 的跨站 Cookie 问题；登录、RBAC、成员、导入、活动、报名、签到、论坛、公告、正文图片及七牛资料库 API 均保留。
 
+## 本次现有云环境操作清单
+
+1. **SQL：无需执行新SQL。** 已有015及之前迁移保持，不重复初始化数据库或成员。
+2. **CloudBase：替换原 electronicclub-api 函数代码。** 上传[完整ZIP](electronicclub-api.zip)，核对[SHA256](electronicclub-api.zip.sha256)，入口仍为 `index.main`，保留原运行时及全部已有环境变量。
+3. **为保留真实登录IP，在两端新增相同服务端变量。** 本机用 `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` 生成64位hex随机值，作为 `ECLUB_PROXY_SECRET` 同时保存到 CloudBase 原API函数环境变量和 EdgeOne 函数运行变量。值必须完全一致，不加VITE前缀，不发到聊天中。仅修复Cookie不依赖此变量；省略会影响真实IP及每IP限流的归属，因此完整升级建议配置。
+4. **EdgeOne：从最新main重新部署网页和边缘函数。** 工作目录为仓库根目录，保留原 `npm ci`、`npm run build -w @electronic-club/web`、`apps/web/dist`、Node22；必须同时识别根目录 `edge-functions`，不能只上传dist。旧 `VITE_API_BASE_URL` 可原样保留，新代码不再读取它，无需为浏览器设置新API地址。默认上游已沿用现有网关，无需新增 `API_UPSTREAM_ORIGIN`。
+5. **保留原Cookie及来源配置并核对结果。** CloudBase `ALLOWED_ORIGIN=https://eclub.gut9.cn`、`COOKIE_SECURE=true` 继续保留；原 `COOKIE_SAMESITE=none` 暂时不用改，未配置则默认lax即可。发布后访问[官网健康接口](https://eclub.gut9.cn/api/health)应返回JSON，再用Safari登录并刷新、退出。没有控制台凭据，本次交付不代表已经替用户完成云端发布或手机实机验收。
+
+顺序为原函数ZIP与变量 → EdgeOne函数变量及网页/函数一起部署 → 登录核对。本次仅补充交付说明，不重新打包或替换已交付的二进制文件。
+
 ## CloudBase
 
 下载 [electronicclub-api.zip](electronicclub-api.zip)，核对 [SHA256](electronicclub-api.zip.sha256)。ZIP 根目录直接包含 index.js、package.json、package-lock.json、全部 node_modules 运行依赖、原迁移及部署文档，入口仍为 **index.main**。大小 12,305,635 字节；SHA-256 `f0a8af6eac8b1caff1b6db46cb7bfc337bcd1b87874c3fe052461fb559d3f619`。
