@@ -39,7 +39,7 @@ export const useAuthStore = defineStore('auth', () => {
       clear()
       if (error instanceof RequestError && error.status === 401)
         throw new Error(
-          '账号密码已验证，但浏览器未能恢复登录会话。请检查 Cookie 设置或联系管理员。',
+          '账号密码已验证，但浏览器未能恢复登录会话。可能是跨站登录 Cookie 被拦截，请联系管理员检查网站与 API 域名配置，无需关闭浏览器隐私保护。',
         )
       throw error
     }

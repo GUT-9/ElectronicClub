@@ -169,7 +169,7 @@ EdgeOne **前端构建环境变量** `VITE_API_BASE_URL` 应填写后端源地�
 
 `CLOUDBASE_APIKEY`是本项目自定义的后端配置名，不是控制台内置选项。目前尚未验证该环境的Key获取与SQL角色授权方式；不要把管理员密码填进去。数据库连接与前端健康检查需分别验收。默认网关仅限开发测试，不能据此宣称正式生产登录或跨站Cookie可用。
 
-跨站联调：若登录200而me401，现有Lax Cookie不会在官网到默认API的跨站fetch中发送。新包支持显式 `COOKIE_SAMESITE=none`，必须配合Secure及精确HTTPS Origin；默认仍Lax，CSRF保留。现代浏览器可能继续禁止第三方Cookie，正式API域名限制也仍存在。详见[跨站联调说明](docs/cloudbase-https-runtime.md)。
+跨站联调：若登录200而me401，现有Lax Cookie不会在官网到默认API的跨站fetch中发送。新包支持显式 `COOKIE_SAMESITE=none`，必须配合Secure及精确HTTPS Origin；默认仍Lax，CSRF保留。现代浏览器可能继续禁止第三方Cookie，正式API域名限制也仍存在。详见[跨站联调说明](docs/cloudbase-https-runtime.md)及[Safari/QQ登录与Cookie核对](docs/mobile-login.md)。
 
 ## 第三阶段（已包含于main）
 

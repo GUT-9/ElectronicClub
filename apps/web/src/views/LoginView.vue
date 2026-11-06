@@ -58,6 +58,7 @@ async function submit() {
           请点击右上角菜单，选择“在浏览器打开”，再使用系统浏览器、Chrome、Edge
           或 Safari 登录。
         </p>
+        <p>若系统浏览器仍提示会话恢复失败，请联系管理员检查网站登录配置。</p>
       </aside>
       <form class="member-form" @submit.prevent="submit">
         <label for="student-id">学号</label
