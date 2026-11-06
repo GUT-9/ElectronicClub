@@ -10,6 +10,7 @@ import { request } from '../member-api'
 import { beijing } from '../stage3'
 import { forumImageUrl, forumStatus } from '../forum'
 import { useAuthStore } from '../stores/auth'
+import ContentState from '../components/ContentState.vue'
 import SafeMarkdown from '../components/SafeMarkdown.vue'
 const route = useRoute(),
   router = useRouter(),
@@ -197,7 +198,13 @@ watch(
 <template>
   <section class="container section forum-thread">
     <RouterLink to="/community">← 返回电子社区</RouterLink>
-    <p v-if="error" role="alert">{{ error }}</p>
+    <ContentState v-if="loading && !post" loading /><ContentState
+      v-else-if="error"
+      error
+      title="暂时无法打开这条讨论"
+      description="帖子可能尚未公开，或网络连接暂时不可用。"
+      @retry="load"
+    />
     <article v-if="post">
       <header class="forum-thread-header">
         <p class="eyebrow">
@@ -297,7 +304,9 @@ watch(
             </button>
           </div>
         </article>
-        <p v-if="!comments.length">还没有公开评论。</p>
+        <p v-if="!comments.length" class="discussion-empty">
+          暂时还没有回复。分享你的经验，或为提问补充一个思路。
+        </p>
         <div class="forum-pagination">
           <button :disabled="page <= 1" @click="turn(-1)">上一页</button
           ><span>第{{ page }}页 · 共{{ total }}条</span

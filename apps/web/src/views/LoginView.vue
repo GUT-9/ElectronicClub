@@ -10,8 +10,10 @@ const auth = useAuthStore(),
 const studentId = ref(''),
   password = ref(''),
   busy = ref(false),
-  error = ref('')
+  error = ref(''),
+  showPassword = ref(false)
 async function submit() {
+  if (busy.value) return
   busy.value = true
   error.value = ''
   try {
@@ -48,7 +50,7 @@ async function submit() {
         密码已更新，请使用新密码重新登录。
       </p>
       <p class="login-note">
-        使用4–24位字母数字学号和密码登录，学号不区分大小写。首次登录须先修改初始密码。
+        欢迎回来，登录后参与讨论、报名活动，继续你的实践旅程。
       </p>
       <form class="member-form" @submit.prevent="submit">
         <label for="student-id">学号</label
@@ -61,21 +63,40 @@ async function submit() {
           :spellcheck="false"
           autocomplete="username"
           required
+          placeholder="输入学号"
+          :disabled="busy"
           maxlength="24"
-        /><label for="password">密码</label
-        ><input
-          id="password"
-          v-model="password"
-          type="password"
-          autocomplete="current-password"
-          required
-          maxlength="128"
-        />
+        /><label for="password">密码</label>
+        <div class="password-input">
+          <input
+            id="password"
+            v-model="password"
+            :type="showPassword ? 'text' : 'password'"
+            autocomplete="current-password"
+            required
+            maxlength="128"
+            :disabled="busy"
+            placeholder="输入登录密码"
+          /><button
+            type="button"
+            class="password-toggle"
+            :aria-pressed="showPassword"
+            @click="showPassword = !showPassword"
+          >
+            {{ showPassword ? '隐藏' : '显示' }}
+          </button>
+        </div>
         <p v-if="error" role="alert" class="form-error">{{ error }}</p>
         <button class="button button-primary" :disabled="busy">
           {{ busy ? '正在登录…' : '登录' }}
         </button>
       </form>
+      <div class="login-help">
+        <strong>首次登录或忘记密码？</strong>
+        <p>
+          成员账号由社团统一建立，首次登录需修改初始密码。如需开通或重置密码，请联系授权管理员。
+        </p>
+      </div>
       <RouterLink to="/" class="text-link">返回官网 ↗</RouterLink>
     </div>
   </section>

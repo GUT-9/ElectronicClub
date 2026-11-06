@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import type {
   ForumPostView,
   ForumComment,
@@ -10,6 +10,7 @@ import type {
 import { request } from '../member-api'
 import { beijing } from '../stage3'
 import { forumStatus } from '../forum'
+import ContentState from '../components/ContentState.vue'
 import ForumPostRows from '../components/ForumPostRows.vue'
 const tab = ref('posts'),
   posts = ref<ForumPostView[]>([]),
@@ -19,13 +20,31 @@ const tab = ref('posts'),
   page = ref(1),
   total = ref(0),
   message = ref(''),
-  busy = ref(false)
+  busy = ref(false),
+  loadError = ref('')
+const empty = computed(
+  () =>
+    ({
+      posts: ['还没有发布帖子', '把制作中的发现或问题写下来，开启一次交流。'],
+      comments: ['还没有参与评论', '到社区看看有没有你感兴趣的话题。'],
+      favorites: [
+        '还没有收藏帖子',
+        '在帖子详情点击收藏，把有用的讨论留在这里。',
+      ],
+      notifications: [
+        '暂时没有新回复',
+        '有人回复你的帖子或评论时，会在这里收到通知。',
+      ],
+      reports: ['还没有举报记录', '你提交的内容举报和处理结果会在这里展示。'],
+    })[tab.value] ?? ['暂无记录', ''],
+)
 let generation = 0
 async function load(reset = false) {
   const current = ++generation
   if (reset) page.value = 1
   busy.value = true
   message.value = ''
+  loadError.value = ''
   try {
     const data = await request<
       Page<ForumPostView | ForumComment | ForumNotification | ForumReport>
@@ -37,7 +56,7 @@ async function load(reset = false) {
     notifications.value = data.items as ForumNotification[]
     reports.value = data.items as ForumReport[]
   } catch (e) {
-    if (current === generation) message.value = (e as Error).message
+    if (current === generation) loadError.value = (e as Error).message
   } finally {
     if (current === generation) busy.value = false
   }
@@ -61,6 +80,7 @@ watch(tab, () => void load(true), { immediate: true })
     <RouterLink to="/community">← 返回电子社区</RouterLink>
     <p class="eyebrow">MY COMMUNITY</p>
     <h1>我的社区</h1>
+    <p class="page-subtitle">你的讨论、收藏和收到的回应，都在这里。</p>
     <nav class="forum-sort">
       <button
         v-for="item in [
@@ -77,7 +97,13 @@ watch(tab, () => void load(true), { immediate: true })
         {{ item[1] }}
       </button>
     </nav>
-    <p v-if="busy">正在加载…</p>
+    <ContentState v-if="busy" loading /><ContentState
+      v-else-if="loadError"
+      error
+      title="记录暂时无法加载"
+      description="请稍后重试。"
+      @retry="load()"
+    />
     <template v-else
       ><ForumPostRows
         v-if="tab === 'posts' || tab === 'favorites'"
@@ -124,9 +150,13 @@ watch(tab, () => void load(true), { immediate: true })
         <p v-if="item.resolution">处理结果：{{ item.resolution }}</p>
         <small>{{ beijing(item.createdAt) }}</small>
       </article>
-      <p v-if="!total" class="admin-empty">这里还没有记录。</p></template
+      <ContentState v-if="!total" :title="empty[0]" :description="empty[1]"
+        ><RouterLink class="text-link" to="/community"
+          >去社区看看 →</RouterLink
+        ></ContentState
+      ></template
     >
-    <div class="forum-pagination">
+    <div v-if="total > 20 && !loadError" class="forum-pagination">
       <button :disabled="busy || page <= 1" @click="turn(-1)">上一页</button
       ><span>第{{ page }}页 · 共{{ total }}条</span
       ><button :disabled="busy || page * 20 >= total" @click="turn(1)">

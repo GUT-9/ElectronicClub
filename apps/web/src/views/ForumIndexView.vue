@@ -4,6 +4,7 @@ import type { ForumBoard, ForumPostView, Page } from '@electronic-club/shared'
 import { request } from '../member-api'
 import { useAuthStore } from '../stores/auth'
 import ForumPostRows from '../components/ForumPostRows.vue'
+import ContentState from '../components/ContentState.vue'
 import PageIntro from '../components/PageIntro.vue'
 const auth = useAuthStore(),
   boards = ref<ForumBoard[]>([]),
@@ -13,14 +14,16 @@ const auth = useAuthStore(),
   search = ref(''),
   page = ref(1),
   total = ref(0),
-  busy = ref(false),
-  error = ref('')
+  busy = ref(true),
+  error = ref(''),
+  boardError = ref('')
 const boardPage = ref(1),
   boardTotal = ref(0),
   boardBusy = ref(false)
 async function moreBoards() {
   if (boardBusy.value) return
   boardBusy.value = true
+  boardError.value = ''
   try {
     const result = await request<Page<ForumBoard>>(
       '/forum/boards?pageSize=30&page=' + boardPage.value,
@@ -29,7 +32,7 @@ async function moreBoards() {
     boardTotal.value = result.total
     boardPage.value++
   } catch (e) {
-    error.value = (e as Error).message
+    boardError.value = (e as Error).message
   } finally {
     boardBusy.value = false
   }
@@ -74,13 +77,9 @@ async function turn(delta: number) {
   page.value += delta
   await load()
 }
-onMounted(async () => {
-  try {
-    await moreBoards()
-    await load()
-  } catch (e) {
-    error.value = (e as Error).message
-  }
+onMounted(() => {
+  void moreBoards()
+  void load()
 })
 </script>
 <template>
@@ -91,7 +90,19 @@ onMounted(async () => {
   />
   <section class="container section forum-workspace">
     <aside class="forum-sidebar">
+      <p class="eyebrow">FIND YOUR TOPIC</p>
       <h2>交流版块</h2>
+      <span
+        v-if="boardBusy && !boards.length"
+        class="forum-board-loading"
+        role="status"
+        >正在加载版块…</span
+      >
+      <p v-if="boardError" class="ui-message" role="alert">
+        版块暂时无法加载。<button class="plain-button" @click="moreBoards">
+          重试
+        </button>
+      </p>
       <button :class="{ selected: !boardId }" @click="selectBoard('')">
         全部讨论</button
       ><button
@@ -114,6 +125,28 @@ onMounted(async () => {
       <p>专注电子技术，尊重每一次提问。请勿发布学号、手机号等个人敏感信息。</p>
     </aside>
     <main class="forum-feed">
+      <header class="forum-feed-heading">
+        <div>
+          <h2>
+            {{
+              boardId
+                ? boards.find((b) => b.id === boardId)?.name || '版块讨论'
+                : '全部讨论'
+            }}
+          </h2>
+          <p>
+            {{
+              boardId
+                ? boards.find((b) => b.id === boardId)?.description ||
+                  '分享你的问题、思路和实践记录。'
+                : '从提问到分享，每一次交流都让探索更进一步。'
+            }}
+          </p>
+        </div>
+        <span v-if="!busy && !error" class="result-count"
+          >{{ total }} 条讨论</span
+        >
+      </header>
       <div class="forum-feed-toolbar">
         <form @submit.prevent="load(true)">
           <input
@@ -148,13 +181,36 @@ onMounted(async () => {
           {{ item[1] }}
         </button>
       </nav>
-      <p v-if="error" role="alert">{{ error }}</p>
-      <p v-if="busy">正在加载讨论…</p>
-      <ForumPostRows v-else :items="posts" />
-      <div v-if="!busy && !posts.length && !error" class="admin-empty">
-        这个版块还没有公开帖子，分享你的第一个想法吧。
-      </div>
-      <div class="forum-pagination">
+      <ContentState v-if="busy" loading /><ContentState
+        v-else-if="error"
+        error
+        title="讨论暂时无法加载"
+        description="请稍后重试，你的筛选条件会保留。"
+        @retry="load()"
+      /><template v-else
+        ><ForumPostRows :items="posts" /><ContentState
+          v-if="!posts.length"
+          :title="search ? '没有找到相关讨论' : '从你的第一个想法开始'"
+          :description="
+            search
+              ? '换一个关键词，或清空搜索看看其他讨论。'
+              : '一个问题、一段调试记录、一次制作心得，都值得被分享。'
+          "
+          ><RouterLink
+            :to="
+              auth.member
+                ? createTarget
+                : '/login?next=' + encodeURIComponent(createTarget)
+            "
+            class="text-link"
+            >{{
+              auth.member ? '发布第一条讨论' : '登录后参与讨论'
+            }}
+            →</RouterLink
+          ></ContentState
+        ></template
+      >
+      <div v-if="total > 20 && !error" class="forum-pagination">
         <button :disabled="busy || page <= 1" @click="turn(-1)">上一页</button
         ><span>第{{ page }}页 · 共{{ total }}帖</span
         ><button :disabled="busy || page * 20 >= total" @click="turn(1)">

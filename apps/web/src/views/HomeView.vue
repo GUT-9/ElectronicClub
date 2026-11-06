@@ -2,27 +2,48 @@
 import { ref, onMounted } from 'vue'
 import type { ClubEvent, ClubArticle, Page } from '@electronic-club/shared'
 import { request } from '../member-api'
-import { beijing } from '../stage3'
+import PublicationCard from '../components/PublicationCard.vue'
+import ContentState from '../components/ContentState.vue'
 import PopupNotice from '../components/PopupNotice.vue'
 import BrandLogo from '../components/BrandLogo.vue'
 import CircuitBoard from '../components/CircuitBoard.vue'
 import SectionHeading from '../components/SectionHeading.vue'
-import EmptyState from '../components/EmptyState.vue'
 import { club, directions } from '../content'
 const recentEvents = ref<ClubEvent[]>([]),
   recentNews = ref<ClubArticle[]>([]),
-  contentError = ref('')
-onMounted(async () => {
-  const results = await Promise.allSettled([
-    request<Page<ClubEvent>>('/public/events?pageSize=3'),
-    request<Page<ClubArticle>>('/public/articles?pageSize=3'),
-  ])
-  const events = results[0],
-    articles = results[1]
-  if (events.status === 'fulfilled') recentEvents.value = events.value.items
-  else contentError.value = '动态暂时无法加载，请稍后重试'
-  if (articles.status === 'fulfilled') recentNews.value = articles.value.items
-  else contentError.value = '动态暂时无法加载，请稍后重试'
+  eventsError = ref(false),
+  newsError = ref(false),
+  eventsLoading = ref(true),
+  newsLoading = ref(true)
+async function loadEvents() {
+  eventsLoading.value = true
+  eventsError.value = false
+  try {
+    recentEvents.value = (
+      await request<Page<ClubEvent>>('/public/events?pageSize=3')
+    ).items
+  } catch {
+    eventsError.value = true
+  } finally {
+    eventsLoading.value = false
+  }
+}
+async function loadNews() {
+  newsLoading.value = true
+  newsError.value = false
+  try {
+    recentNews.value = (
+      await request<Page<ClubArticle>>('/public/articles?pageSize=3')
+    ).items
+  } catch {
+    newsError.value = true
+  } finally {
+    newsLoading.value = false
+  }
+}
+onMounted(() => {
+  void loadEvents()
+  void loadNews()
 })
 </script>
 <template>
@@ -125,36 +146,28 @@ onMounted(async () => {
       to="/activities"
       link-text="活动中心"
     />
-    <div class="activity-empty">
-      <div class="activity-annotation">
-        <span class="label">社团活动</span>
-        <h3>把知识接入现实。</h3>
-        <p>焊接、测量、设计、制作。<br />每一个步骤，都是新的探索。</p>
-      </div>
-      <div v-if="recentEvents.length">
-        <article
-          v-for="event in recentEvents"
-          :key="event.id"
-          class="publication-row"
-        >
-          <div>
-            <p class="eyebrow">{{ beijing(event.startsAt) }}</p>
-            <h3>
-              <RouterLink :to="`/activities/${event.id}`">{{
-                event.title
-              }}</RouterLink>
-            </h3>
-            <p>{{ event.summary }}</p>
-          </div>
-        </article>
-      </div>
-      <EmptyState
-        v-else
-        compact
-        :title="contentError || '暂无近期活动'"
-        description="活动安排确认后，将在这里发布。"
+    <ContentState v-if="eventsLoading" loading /><ContentState
+      v-else-if="eventsError"
+      error
+      title="活动暂时无法加载"
+      description="稍后再试，或进入活动中心查看。"
+      @retry="loadEvents"
+    />
+    <div v-else-if="recentEvents.length" class="publication-card-grid">
+      <PublicationCard
+        v-for="event in recentEvents"
+        :key="event.id"
+        :item="event"
       />
     </div>
+    <ContentState
+      v-else
+      title="下一次实践，值得期待"
+      description="新的活动安排将在这里发布。你也可以先到社区分享想做的项目。"
+      ><RouterLink to="/community" class="text-link"
+        >去社区看看 →</RouterLink
+      ></ContentState
+    >
   </section>
   <section class="news-section">
     <div class="container">
@@ -165,32 +178,25 @@ onMounted(async () => {
         to="/news"
         link-text="全部公告"
       />
-      <div class="news-empty-row">
-        <span class="news-column-label">最新公告</span>
-        <div v-if="recentNews.length">
-          <article
-            v-for="article in recentNews"
-            :key="article.id"
-            class="publication-row"
-          >
-            <div>
-              <p class="eyebrow">{{ beijing(article.publishedAt) }}</p>
-              <h3>
-                <RouterLink :to="`/news/${article.id}`">{{
-                  article.title
-                }}</RouterLink>
-              </h3>
-              <p>{{ article.summary }}</p>
-            </div>
-          </article>
-        </div>
-        <EmptyState
-          v-else
-          compact
-          :title="contentError || '暂无新闻公告'"
-          description="关注这里，了解社团的下一步动态。"
+      <ContentState v-if="newsLoading" loading /><ContentState
+        v-else-if="newsError"
+        error
+        title="新闻暂时无法加载"
+        description="请稍后重试，或进入新闻公告查看。"
+        @retry="loadNews"
+      />
+      <div v-else-if="recentNews.length" class="publication-card-grid">
+        <PublicationCard
+          v-for="article in recentNews"
+          :key="article.id"
+          :item="article"
         />
       </div>
+      <ContentState
+        v-else
+        title="关注社团的下一步动态"
+        description="活动通知、制作记录和社团新闻将在这里更新。"
+      />
     </div>
   </section>
   <section class="community-section container">

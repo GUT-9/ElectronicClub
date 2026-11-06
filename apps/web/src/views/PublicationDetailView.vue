@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { imageSource } from '../media'
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import type {
   ClubEvent,
@@ -10,6 +10,8 @@ import type {
 import { request } from '../member-api'
 import { useAuthStore } from '../stores/auth'
 import { beijing } from '../stage3'
+import ContentState from '../components/ContentState.vue'
+import { eventLabel } from '../presentation'
 import SafeMarkdown from '../components/SafeMarkdown.vue'
 const props = defineProps<{ kind: 'events' | 'articles' }>(),
   route = useRoute(),
@@ -20,16 +22,41 @@ const props = defineProps<{ kind: 'events' | 'articles' }>(),
   message = ref(''),
   note = ref(''),
   code = ref(''),
-  busy = ref(false)
+  busy = ref(false),
+  loading = ref(true),
+  membershipLoading = ref(false),
+  membershipError = ref('')
 let generation = 0
+const registrationOpen = computed(() => {
+  const e = item.value
+  if (!e || !('registrationEnabled' in e)) return false
+  return (
+    e.registrationEnabled &&
+    Date.parse(e.registrationDeadline) > Date.now() &&
+    (!e.registrationStartsAt ||
+      Date.parse(e.registrationStartsAt) <= Date.now()) &&
+    (e.capacity === null || e.occupied < e.capacity)
+  )
+})
 async function load() {
   const current = ++generation
+  loading.value = !item.value
+  error.value = ''
+  membershipError.value = ''
   try {
     const loaded = await request<ClubEvent | ClubArticle>(
       `/public/${props.kind}/${route.params.id}`,
     )
     if (current !== generation) return
     item.value = loaded
+  } catch (e) {
+    if (current === generation) error.value = (e as Error).message
+    return
+  } finally {
+    if (current === generation) loading.value = false
+  }
+  membershipLoading.value = true
+  try {
     await auth.restore(true)
     if (current !== generation) return
     if (props.kind === 'events' && auth.member) {
@@ -38,11 +65,15 @@ async function load() {
       )
       if (current === generation) registration.value = result
     }
-  } catch (e) {
-    if (current === generation) error.value = (e as Error).message
+  } catch {
+    if (current === generation)
+      membershipError.value = '暂时无法读取你的报名状态，请重试后再操作。'
+  } finally {
+    if (current === generation) membershipLoading.value = false
   }
 }
 async function action(path: string, method = 'POST', data: unknown = {}) {
+  if(busy.value)return
   busy.value = true
   message.value = ''
   try {
@@ -72,24 +103,41 @@ watch(
     <RouterLink :to="kind === 'events' ? '/activities' : '/news'"
       >← 返回列表</RouterLink
     >
-    <p v-if="error" role="alert">{{ error }}</p>
-    <article v-if="item" class="publication-detail">
-      <p class="eyebrow">
-        {{ beijing(item.publishedAt) }} · {{ item.publisherName }}
-      </p>
-      <h1>{{ item.title }}</h1>
-      <p>{{ item.summary }}</p>
+    <ContentState v-if="loading" loading /><ContentState
+      v-else-if="error"
+      error
+      title="内容暂时无法打开"
+      description="内容可能尚未公开，或网络连接暂时不可用。"
+      @retry="load"
+    />
+    <article v-if="item && !loading && !error" class="publication-detail">
+      <header class="publication-detail-header">
+        <p class="eyebrow">
+          {{ beijing(item.publishedAt) }} · {{ item.publisherName }}
+        </p>
+        <h1>{{ item.title }}</h1>
+        <p v-if="item.summary" class="publication-lead">{{ item.summary }}</p>
+      </header>
       <img
         v-if="item.cover"
         :src="imageSource(item.cover)"
         alt="封面"
         class="publication-cover"
-      /><template v-if="'startsAt' in item"
-        ><p>
-          活动时间：{{ beijing(item.startsAt) }} — {{ beijing(item.endsAt) }}
-        </p>
-        <p>地点：{{ item.location }}</p></template
-      ><SafeMarkdown :content="item.content" />
+      />
+      <div v-if="'startsAt' in item" class="event-facts">
+        <span class="ui-tag">{{ eventLabel(item) }}</span>
+        <div>
+          <span>活动时间</span
+          ><strong
+            >{{ beijing(item.startsAt) }} — {{ beijing(item.endsAt) }}</strong
+          >
+        </div>
+        <div>
+          <span>活动地点</span
+          ><strong>{{ item.location || '地点待定' }}</strong>
+        </div>
+      </div>
+      <SafeMarkdown :content="item.content" />
       <section
         v-if="'registrationEnabled' in item && item.registrationEnabled"
         class="registration-panel"
@@ -99,8 +147,15 @@ watch(
           报名截止：{{ beijing(item.registrationDeadline) }} · 已占名额
           {{ item.occupied }} / {{ item.capacity ?? '不限' }}
         </p>
+        <p v-if="membershipLoading" class="ui-message" role="status">
+          正在读取报名状态…
+        </p>
+        <div v-else-if="membershipError" class="ui-message" role="alert">
+          {{ membershipError
+          }}<button class="plain-button" @click="load">重新读取</button>
+        </div>
         <RouterLink
-          v-if="!auth.member"
+          v-else-if="!auth.member"
           class="button button-primary"
           :to="`/login?next=${encodeURIComponent(route.fullPath)}`"
           >登录后报名</RouterLink
@@ -133,8 +188,14 @@ watch(
                 maxlength="2000"
               />
             </label>
-            <p>身份资料使用已绑定成员档案，不能在此修改。</p>
-            <button :disabled="busy" class="button button-primary">
+            <p>报名将使用你的成员档案信息，无需重复填写。</p>
+            <p v-if="!registrationOpen" class="ui-message">
+              当前暂不接受新报名，请留意报名时间及剩余名额。
+            </p>
+            <button
+              :disabled="busy || !registrationOpen"
+              class="button button-primary"
+            >
               提交报名
             </button>
           </form>

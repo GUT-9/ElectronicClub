@@ -93,12 +93,17 @@ watch(
         </div>
         <div class="footer-links">
           <RouterLink to="/about">社团介绍</RouterLink
+          ><RouterLink to="/activities">活动中心</RouterLink
           ><RouterLink to="/news">新闻公告</RouterLink
           ><RouterLink to="/community">电子社区</RouterLink>
         </div>
       </div>
       <div class="footer-bottom">
-        <span>电子技术 · 工程实践 · 创新精神</span><HealthStatus />
+        <span>电子技术 · 工程实践 · 创新精神</span>
+        <details class="footer-service">
+          <summary>服务连接</summary>
+          <HealthStatus />
+        </details>
       </div>
     </div>
   </footer>

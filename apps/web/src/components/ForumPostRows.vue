@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type { ForumPostView } from '@electronic-club/shared'
+import { forumStatus } from '../forum'
+import { excerpt } from '../presentation'
 import { beijing } from '../stage3'
 defineProps<{ items: ForumPostView[] }>()
 </script>
@@ -12,7 +14,10 @@ defineProps<{ items: ForumPostView[] }>()
       </div>
       <div class="forum-post-main">
         <div class="forum-post-flags">
-          <span v-if="post.pinned">置顶</span
+          <span v-if="post.status !== 'published'">{{
+            forumStatus[post.status] || post.status
+          }}</span
+          ><span v-if="post.pinned">置顶</span
           ><span v-if="post.featured">精华</span
           ><span v-if="post.locked">已锁定</span
           ><span>{{ post.board.name }}</span>
@@ -22,7 +27,7 @@ defineProps<{ items: ForumPostView[] }>()
             post.title
           }}</RouterLink>
         </h2>
-        <p>{{ post.body.slice(0, 120) }}</p>
+        <p>{{ excerpt(post.body) || '查看完整讨论与正文图片' }}</p>
         <small
           >{{ post.author.nickname }} · {{ beijing(post.createdAt) }} ·
           {{ post.likeCount }} 赞</small
