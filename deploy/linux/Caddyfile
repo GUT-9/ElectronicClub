@@ -1,0 +1,27 @@
+{
+  admin off
+}
+{$SITE_ADDRESS} {
+  {$TLS_DIRECTIVE}
+  encode zstd gzip
+  header X-Content-Type-Options nosniff
+  @api path /api /api/*
+  handle @api {
+    reverse_proxy api:3001 {
+      header_up X-EClub-Proxy-Token {$PROXY_TOKEN}
+      header_up X-Real-IP {remote_host}
+    }
+  }
+  handle /assets/* {
+    root * /srv
+    file_server
+  }
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+}
+:8080 {
+  respond /ready "ready" 200
+}

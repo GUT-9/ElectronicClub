@@ -1,0 +1,11 @@
+[
+  "editor-https-install.sql",
+  "008-stage3.sql",
+  "009-stage4-forum.sql",
+  "010-role-access.sql",
+  "011-content-media.sql",
+  "012-login-history.sql",
+  "013-member-stats-resources.sql",
+  "014-member-purge.sql",
+  "015-event-operations.sql"
+]

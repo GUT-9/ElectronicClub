@@ -13,3 +13,7 @@ apps/functions/deploy/
 artifacts/
 
 *bootstrap-private*.sql
+
+.state/
+*.dump
+*.dump.enc

@@ -26,3 +26,49 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
+  self-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:self-host
+      - run: npm run test:self-host
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [check, self-host]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: deployment-packages-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run release:refresh
+      - name: Publish changed packages only
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: |
+          if [ -z "$(git status --porcelain -- deployment-packages)" ]; then exit 0; fi
+          git fetch origin main:refs/remotes/origin/main
+          if [ "$(git rev-parse origin/main)" != "$EXPECTED_COMMIT" ]; then
+            echo 'main advanced; refusing to overwrite newer work. The next push will process the pending release intent.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add deployment-packages
+          git commit -m 'build: refresh changed deployment packages [skip ci]'
+          git push origin HEAD:main

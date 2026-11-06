@@ -33,7 +33,10 @@
     "member-purge:sql:generate": "node --import tsx scripts/generate-member-purge-sql.mts",
     "member-purge:sql:check": "node --import tsx scripts/generate-member-purge-sql.mts --check",
     "event-operations:sql:generate": "node --import tsx scripts/generate-event-operations-sql.mts",
-    "event-operations:sql:check": "node --import tsx scripts/generate-event-operations-sql.mts --check"
+    "event-operations:sql:check": "node --import tsx scripts/generate-event-operations-sql.mts --check",
+    "build:self-host": "node scripts/build-self-host.mjs",
+    "release:refresh": "node scripts/release-refresh.mjs",
+    "test:self-host": "bash scripts/check-self-host.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

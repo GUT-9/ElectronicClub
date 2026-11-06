@@ -1,5 +1,7 @@
 # 完整 CloudBase 部署包 · 活动审核、负责人和签到
 
+Linux备用部署另见 [electronicclub-linux.tar.gz](electronicclub-linux.tar.gz) / [SHA256](electronicclub-linux.tar.gz.sha256)，配套[运维工具](electronicclub-operations.tar.gz) / [SHA256](electronicclub-operations.tar.gz.sha256)。[服务器说明](../docs/linux-server.md)包含备份、恢复、一条命令升级及重大更新发布规则。版本与组件摘要以[release-state.json](release-state.json)为准。本次未改变下述CloudBase云函数ZIP，也不执行生产迁移。
+
 源码提交 `62631d1eff4c7e2348bcc5c17e1539f1681c9200`。保留既有成员登录、RBAC、导入、论坛、公告、图片、资料库和成员彻底删除API，修复活动审核入口和仅审核权限访问名单，支持姓名多选/按角色批量负责人，以及可保存的签到码有效期。
 
 下载 [electronicclub-api.zip](electronicclub-api.zip)，核对 [SHA256](electronicclub-api.zip.sha256)。ZIP根目录直接包含 `index.js`、`package.json`、`package-lock.json`、全部 `node_modules` 运行依赖、SQL及部署/私有维护文件，入口 **index.main**。不含真实密钥或生产成员资料。

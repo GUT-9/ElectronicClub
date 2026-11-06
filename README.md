@@ -104,6 +104,10 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 4. 根目录已添加 `edgeone.json`，记录上述构建参数，并为 `/about`、`/resources`、`/news`、`/activities`、`/community`、`/login`、`/admin`、`/account`、`/change-password`、`/admin/*` 及三类详情路径配置到 `/index.html` 的重写。规则不覆盖 `/assets/*` 或 `/api/*`。确保平台读取仓库根配置；如控制台配置覆盖仓库配置，应同步这些参数。配置字段及路径语法已对照官方 npm 包 `edgeone@1.6.47` 核对，腾讯云线上路由仍需部署后实际刷新验证。后续新增页面需同步重写规则；`tests/edgeone-routing.test.ts` 会对照 Vue 路由检查覆盖，避免站内跳转正常而刷新404。
 5. 在部署后的首页点击页脚“检查服务连接”，验证真实前端到 CloudBase 的请求和 CORS。云部署需要腾讯云账号、环境与域名，本初始化不创建收费资源，也不声称已部署。
 
+## 云端与 Linux 双部署交付
+
+现有 CloudBase + EdgeOne 继续使用。Linux备用部署包与加密备份/恢复/升级工具见[服务器说明](docs/linux-server.md)，真实迁移须由用户另行提出。重大更新提升 `release/major.json` generation，发布流程按内容摘要更新 `deployment-packages/electronicclub-linux.tar.gz` 与 `electronicclub-operations.tar.gz`；小更新不重打这两个包，无变化的组件保持原文件与SHA256。规则记录在AGENTS.md。CI同时检查现有PG/HTTPS-RPC业务和隔离Linux HTTPS/数据库/备份恢复/升级，普通检查只产生临时测试构建，不覆盖稳定包。
+
 ## API
 
 成员彻底删除：新增 `members.purge` 独立权限，需执行014迁移并更新函数/前端，见[部署与删除范围](docs/member-purge-deploy.md)。仅适用于无业务关联的已软删除账号，不会级联删除活动或论坛内容。
