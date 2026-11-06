@@ -101,7 +101,7 @@ Codex 云端任务应使用已有检出目录 `/workspace/ElectronicClub`，无�
 1. 导入 GitHub 仓库，使用仓库根目录作为构建工作目录（共享 workspace 位于根目录）。
 2. 安装命令 `npm ci`，构建命令 `npm run build -w @electronic-club/web`，输出目录 `apps/web/dist`。Node 版本选择 22.12+。
 3. 设置构建变量 `VITE_API_BASE_URL=https://你的CloudBaseHTTP服务域名`，重新构建部署。成员 Cookie 登录要求前后端使用同站点自定义 HTTPS 域名（如 club.example.edu 与 api.example.edu），或可信同源代理；不同默认站点域名不能只配置 CORS 就认为可以登录。不要将 CloudBase 密钥配置为 Vite 变量。
-4. 根目录已添加 `edgeone.json`，记录上述构建参数，并为 `/about`、`/news`、`/activities`、`/community`、`/login`、`/admin` 、`/account`、`/change-password`、`/admin/*` 及三类详情路径配置到 `/index.html` 的重写。规则不覆盖 `/assets/*` 或 `/api/*`。确保平台读取仓库根配置；如控制台配置覆盖仓库配置，应同步这些参数。配置字段及路径语法已对照官方 npm 包 `edgeone@1.6.47` 核对，腾讯云线上路由仍需部署后实际刷新验证。后续新增页面需同步重写规则。
+4. 根目录已添加 `edgeone.json`，记录上述构建参数，并为 `/about`、`/resources`、`/news`、`/activities`、`/community`、`/login`、`/admin`、`/account`、`/change-password`、`/admin/*` 及三类详情路径配置到 `/index.html` 的重写。规则不覆盖 `/assets/*` 或 `/api/*`。确保平台读取仓库根配置；如控制台配置覆盖仓库配置，应同步这些参数。配置字段及路径语法已对照官方 npm 包 `edgeone@1.6.47` 核对，腾讯云线上路由仍需部署后实际刷新验证。后续新增页面需同步重写规则；`tests/edgeone-routing.test.ts` 会对照 Vue 路由检查覆盖，避免站内跳转正常而刷新404。
 5. 在部署后的首页点击页脚“检查服务连接”，验证真实前端到 CloudBase 的请求和 CORS。云部署需要腾讯云账号、环境与域名，本初始化不创建收费资源，也不声称已部署。
 
 ## API

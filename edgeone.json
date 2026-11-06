@@ -9,6 +9,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/resources",
+      "destination": "/index.html"
+    },
+    {
       "source": "/news",
       "destination": "/index.html"
     },

@@ -13,7 +13,7 @@
 1. 在已有012及前置版本的 CloudBase PostgreSQL SQL 编辑器执行 `cloudbase/sql/013-member-stats-resources.sql`。脚本使用事务和版本记录，可重复执行；新增资料元数据表、索引、受限统计/分页RPC和权限定义，扩展原RPC白名单。不会重建成员、角色或密码，不清空旧数据。
 2. 上传最新 `deployment-packages/electronicclub-api.zip` 替换原函数，入口仍为 `index.main`，保留原环境变量。核对 SHA256。Node18.15/兼容运行时。
 3. 在原云函数配置七牛环境变量，见下节。
-4. 配置七牛空间 CORS，然后 EdgeOne 更新 main 前端。已有 SPA 回退继续覆盖 `/resources` 和 `/admin/resources`。
+4. 配置七牛空间 CORS，然后 EdgeOne 更新 main 前端。仓库根目录 `edgeone.json` 已为 `/resources` 补上到 `/index.html` 的 SPA 回退；`/admin/resources` 由现有 `/admin/*` 覆盖。需要重新构建部署，使路由配置生效；若控制台覆盖了仓库配置，需同步这条重写。部署后直接打开并刷新 `/resources` 核对，不能仅用站内点击测试。
 
 `013-member-stats-resources-verify.sql` 为可选只读核对。没有配置七牛时成员统计仍可用，管理页会显示“存储待配置”，不会伪造上传成功。本交付不代表已执行生产SQL或操作七牛空间。
 
