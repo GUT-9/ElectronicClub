@@ -1,4 +1,5 @@
 // The upstream is fixed server-side. Request parameters never select a host.
+import { normalizeProxySecret } from '@electronic-club/shared/proxy-secret'
 export const DEFAULT_API_UPSTREAM =
   'https://natural-tuna-d6gptlw1w76fa8a63-1448063817.ap-shanghai.app.tcloudbase.com'
 export interface ProxyContext {
@@ -16,7 +17,7 @@ const methods = new Set([
   'OPTIONS',
 ])
 const maxBody = 3_100_000
-const revision = 'json-text-v2'
+const revision = 'secret-text-v3'
 function failure(status: number, code: string, message: string) {
   return new Response(
     JSON.stringify({ success: false, error: { code, message } }),
@@ -124,14 +125,15 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
   if (cookie) headers.set('cookie', cookie)
   headers.set('accept-encoding', 'identity')
   headers.set('cache-control', 'no-store')
-  const secret = context.env?.ECLUB_PROXY_SECRET
+  const configuredSecret = context.env?.ECLUB_PROXY_SECRET
+  const secret = normalizeProxySecret(configuredSecret)
+  if (configuredSecret && !secret)
+    return failure(
+      503,
+      'API_PROXY_SECRET_FORMAT',
+      'EdgeOne 的 ECLUB_PROXY_SECRET 值格式不正确，请填写完整的64位十六进制密钥',
+    )
   if (secret) {
-    if (!/^[a-f0-9]{64}$/i.test(secret))
-      return failure(
-        503,
-        'API_PROXY_CONFIGURATION',
-        'API 转发密钥配置有误，请联系管理员',
-      )
     const ip = context.eo?.clientIp?.trim()
     if (ip && ip.length <= 64 && /^[0-9a-f:.]+$/i.test(ip)) {
       const timestamp = String(Date.now()),

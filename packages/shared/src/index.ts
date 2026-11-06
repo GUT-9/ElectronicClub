@@ -1,4 +1,5 @@
 export const HEALTH_PATH = '/api/health' as const
+export { normalizeProxySecret } from './proxy-secret'
 export interface HealthData {
   status: 'ok'
   service: 'ElectronicClub API'

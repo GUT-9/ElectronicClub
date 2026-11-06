@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
+import { normalizeProxySecret } from '@electronic-club/shared/proxy-secret'
 import { proxyApi, DEFAULT_API_UPSTREAM } from '../deploy/edgeone/proxy'
 import {
   loginContext,
@@ -135,9 +136,93 @@ test('proxy rejects invalid JSON UTF-8 before forwarding and uses ArrayBuffer fo
     fetcher,
   )
   assert.equal(response.status, 200)
-  assert.equal(response.headers.get('x-eclub-api-revision'), 'json-text-v2')
+  assert.equal(response.headers.get('x-eclub-api-revision'), 'secret-text-v3')
   assert.ok(binary instanceof ArrayBuffer)
   assert.deepEqual(new Uint8Array(binary), new Uint8Array([0, 128, 255]))
+})
+
+test('proxy secret normalization supports copied configuration and rejects malformed keys without changing key case', () => {
+  for (const value of [
+    secret,
+    ` \r\n${secret}\n`,
+    `"${secret}"`,
+    `'${secret}'`,
+    `ECLUB_PROXY_SECRET=${secret}`,
+    ` ECLUB_PROXY_SECRET = "${secret}"\r\n`,
+    '\uFEFF' + secret.slice(0, 32) + '\r\n' + secret.slice(32),
+  ])
+    assert.equal(normalizeProxySecret(value), secret)
+  assert.equal(normalizeProxySecret('A'.repeat(64)), 'A'.repeat(64))
+  for (const value of [
+    undefined,
+    null,
+    123,
+    {},
+    '',
+    ' ',
+    'a'.repeat(63),
+    'a'.repeat(65),
+    'g'.repeat(64),
+    'OTHER_KEY=' + secret,
+    '"' + secret + "'",
+  ])
+    assert.equal(normalizeProxySecret(value), null)
+})
+
+test('edge and backend normalize independent pasted wrappers before verifying IP signatures', async () => {
+  const previous = process.env.ECLUB_PROXY_SECRET
+  try {
+    for (const [edge, backend] of [
+      [` ${secret}\r\n`, secret],
+      [`"${secret}"`, ` ECLUB_PROXY_SECRET = '${secret}'\r\n`],
+      [secret.slice(0, 32) + '\n' + secret.slice(32), '\uFEFF' + secret],
+    ]) {
+      process.env.ECLUB_PROXY_SECRET = backend
+      let accepted: string | null = null
+      const response = await proxyApi(
+        {
+          request: new Request(origin + '/api/auth/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: '{}',
+          }),
+          env: { ECLUB_PROXY_SECRET: edge },
+          eo: { clientIp: '203.0.113.31' },
+        },
+        async (_url, options) => {
+          accepted = signedProxyIp(
+            Object.fromEntries(new Headers(options!.headers)),
+          )
+          return new Response('{}')
+        },
+      )
+      assert.equal(response.status, 200)
+      assert.equal(accepted, '203.0.113.31')
+    }
+  } finally {
+    if (previous === undefined) delete process.env.ECLUB_PROXY_SECRET
+    else process.env.ECLUB_PROXY_SECRET = previous
+  }
+})
+
+test('invalid proxy secret reports a precise format error without forwarding or echoing configuration', async () => {
+  let calls = 0
+  const bad = 'invalid-config-value'
+  const response = await proxyApi(
+    {
+      request: new Request(origin + '/api/auth/login'),
+      env: { ECLUB_PROXY_SECRET: bad },
+    },
+    async () => {
+      calls++
+      return new Response('{}')
+    },
+  )
+  assert.equal(response.status, 503)
+  assert.equal(calls, 0)
+  const text = await response.text()
+  assert.equal(JSON.parse(text).error.code, 'API_PROXY_SECRET_FORMAT')
+  assert.ok(!text.includes(bad))
 })
 
 test('proxy preserves secure session cookies, deletion, binary downloads and error status without caching or redirecting', async () => {

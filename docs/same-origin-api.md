@@ -25,6 +25,8 @@ openssl rand -hex 32
 
 将结果作为同名 `ECLUB_PROXY_SECRET`，分别保存到 **EdgeOne函数运行变量** 和 **CloudBase原API函数环境变量**。两端必须完全一致；无需填入聊天、仓库或任何VITE变量。它是本项目代理的随机共享密钥，不是CloudBase API Key、环境ID或成员密码。更新CloudBase新ZIP后才有签名验证能力。
 
+最新兼容补丁由两端共用相同的密钥规范化逻辑，清理复制空白、配对引号及明确的赋值前缀，再校验64位hex；保留大小写，仍推荐变量值只填密钥本身。[密钥格式报错及本次升级清单](proxy-secret-config-fix.md)说明完整操作。错误提示不会回显配置内容。
+
 边缘函数只读取平台 `context.eo.clientIp`，从不采用用户的X-Forwarded-For；清除请求中的伪造签名并用HMAC-SHA256签名IP、时间和浏览器信息。后端只在密钥、签名、真实IP格式和60秒时间窗都有效时采用，记录来源为trusted-header；无效/过期/未配置时回退网关元数据，不接受客户端随意指定IP。直连旧API保持兼容。密钥轮换时协调两端更新，短暂不匹配会回退网关IP。
 
 ## 请求和缓存边界

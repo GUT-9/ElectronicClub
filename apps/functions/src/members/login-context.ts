@@ -1,5 +1,6 @@
 import { isIP } from 'node:net'
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { normalizeProxySecret } from '@electronic-club/shared'
 export interface LoginMetadata {
   memberUid: string | null
   ip: string | null
@@ -26,13 +27,12 @@ export function signedProxyIp(
   headers: Record<string, string | undefined>,
   now = Date.now(),
 ) {
-  const key = process.env.ECLUB_PROXY_SECRET,
+  const key = normalizeProxySecret(process.env.ECLUB_PROXY_SECRET),
     address = ip(headers['x-eclub-client-ip']),
     timestamp = headers['x-eclub-proxy-time'],
     signature = headers['x-eclub-proxy-signature']
   if (
     !key ||
-    !/^[a-f0-9]{64}$/i.test(key) ||
     !address ||
     !timestamp ||
     !/^\d{13}$/.test(timestamp) ||
