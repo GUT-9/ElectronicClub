@@ -1,3 +1,5 @@
+import {MEMBER_STATS_SQL} from './stats-query'
+import {RESOURCE_SQL,validateResourceQuery} from '../resources/query'
 import {LOGIN_HISTORY_SQL,validateLoginQuery} from './login-query'
 import {EXPIRED_MEDIA_SQL,validateExpired} from '../media/query'
 import {ACCESS_SQL,validateAccessQuery} from './access-query'
@@ -6,6 +8,7 @@ import { Pool } from 'pg'
 import type { Store, Transaction, ListOptions } from './store'
 const tables = new Set([
   ...FORUM_TABLES,
+  'club_resources',
   'media_images','media_chunks',
   'events',
   'event_managers',
@@ -184,6 +187,8 @@ export class PgStore implements Store {
     options: ListOptions,
   ) {
     await this.verifyRole()
+    if(c==='member_stats'){if(Object.keys(filter).length||options.offset!==0||options.limit!==1)throw new Error('INVALID_STATS_QUERY');return{items:[(await this.pool.query(MEMBER_STATS_SQL)).rows[0].result] as T[],total:1}}
+    if(c==='club_resources'){validateResourceQuery(filter,options);return(await this.pool.query(RESOURCE_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}
     if(c==='login_history'){validateLoginQuery(filter,options);return (await this.pool.query(LOGIN_HISTORY_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}
     if(c==='media_expired'){validateExpired(filter,options);return (await this.pool.query(EXPIRED_MEDIA_SQL,[filter.before,options.limit])).rows[0].result as {items:T[];total:number}}
     if(c==='access_members'){validateAccessQuery(filter,options);return (await this.pool.query(ACCESS_SQL,[filter,options.limit,options.offset])).rows[0].result as {items:T[];total:number}}

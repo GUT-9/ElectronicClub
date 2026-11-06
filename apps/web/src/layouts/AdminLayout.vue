@@ -14,6 +14,7 @@ const navGroups = computed(() =>
         '/admin/articles',
         '/admin/popups',
         '/admin/forum',
+        '/admin/resources',
       ],
     },
     {
@@ -38,6 +39,11 @@ const navGroups = computed(() =>
 )
 const links = computed(() =>
   [
+    {
+      to: '/admin/resources',
+      label: '社团资料管理',
+      permission: 'resources.manage',
+    },
     { to: '/admin/forum', label: '电子社区管理', permission: '' },
     { to: '/admin/events', label: '活动与报名', permission: '' },
     { to: '/admin/articles', label: '新闻公告', permission: '' },

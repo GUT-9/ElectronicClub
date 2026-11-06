@@ -1,3 +1,5 @@
+import {memoryMemberStats} from './stats-query'
+import {memoryResourceList} from '../resources/query'
 import {memoryLoginList} from './login-query'
 import {validateExpired} from '../media/query'
 import {memoryAccessList} from './access-query'
@@ -41,6 +43,8 @@ export class MemoryStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
+    if(collection==='member_stats'){if(Object.keys(filter).length||options.offset!==0||options.limit!==1)throw new Error('INVALID_STATS_QUERY');return{items:[memoryMemberStats(this.data)] as T[],total:1}}
+    if(collection==='club_resources')return memoryResourceList<T>(this.data,filter,options)
     if(collection==='login_history')return memoryLoginList<T>(this.data,filter,options)
     if(collection==='media_expired'){validateExpired(filter,options);const items=[...this.data.entries()].filter(([key])=>key.startsWith('media_images/')).map(([,v])=>v as {bindings:unknown[];createdAt:string}).filter(v=>!v.bindings.length&&v.createdAt<String(filter.before)).sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).slice(0,options.limit);return {items:structuredClone(items) as T[],total:items.length}}
     if(collection==='access_members')return memoryAccessList<T>(this.data,filter,options)

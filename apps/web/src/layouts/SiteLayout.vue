@@ -16,6 +16,7 @@ const links = [
   { to: '/news', label: '新闻公告' },
   { to: '/activities', label: '活动中心' },
   { to: '/community', label: '电子社区' },
+  { to: '/resources', label: '资料库' },
 ]
 watch(
   () => route.path,
@@ -95,7 +96,8 @@ watch(
           <RouterLink to="/about">社团介绍</RouterLink
           ><RouterLink to="/activities">活动中心</RouterLink
           ><RouterLink to="/news">新闻公告</RouterLink
-          ><RouterLink to="/community">电子社区</RouterLink>
+          ><RouterLink to="/community">电子社区</RouterLink
+          ><RouterLink to="/resources">社团资料库</RouterLink>
         </div>
       </div>
       <div class="footer-bottom">

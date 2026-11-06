@@ -16,7 +16,7 @@ export async function request<T>(
   data?: unknown,
 ): Promise<T> {
   const serialized = data === undefined ? undefined : JSON.stringify(data)
-  if (serialized && /^\/(events|articles|popups|forum|media)(?:\/|$)/.test(path) && new TextEncoder().encode(serialized).byteLength > MAX_CONTENT_REQUEST_BYTES)
+  if (serialized && /^\/(events|articles|popups|forum|media|resources)(?:\/|$)/.test(path) && new TextEncoder().encode(serialized).byteLength > MAX_CONTENT_REQUEST_BYTES)
     throw new RequestError('内容请求超过64KB安全预算，请重新选择封面以自动压缩，或缩短正文；尚未提交保存。', 'PAYLOAD_TOO_LARGE', 413)
   const response = await fetch(`${base}/api${path}`, {
     method,

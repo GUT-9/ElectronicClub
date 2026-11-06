@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import type { LoginRecord, Page } from '@electronic-club/shared'
+import MemberStats from '../components/MemberStats.vue'
 import { request } from '../member-api'
 import { beijing } from '../stage3'
 const data = ref<Page<LoginRecord>>(),
@@ -75,6 +76,7 @@ onMounted(load)
         刷新记录
       </button>
     </header>
+    <MemberStats />
     <form class="login-history-filter" @submit.prevent="search">
       <label class="history-search"
         >查找成员或 IP<input

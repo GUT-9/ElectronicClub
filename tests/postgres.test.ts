@@ -668,6 +668,8 @@ test(
             'SELECT public.ec_list($1,$2,$3,$4) AS value',
             [args.p_collection, args.p_filter, args.p_offset, args.p_limit],
           ],
+          ec_member_stats:['SELECT public.ec_member_stats() AS value',[]],
+          ec_resources_list:['SELECT public.ec_resources_list($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_login_history:['SELECT public.ec_login_history($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_media_expired: ['SELECT public.ec_media_expired($1,$2) AS value',[args.p_before,args.p_limit]],
           ec_access_members: ['SELECT public.ec_access_members($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
@@ -793,6 +795,20 @@ test(
       const {loginHistorySuite}=await import('./helpers/login-history-suite')
       await loginHistorySuite(service,store,login.token!)
       assert.deepEqual(await store.list('login_history',{outcome:'success'},{offset:0,limit:20}),await new PgStore(owner).list('login_history',{outcome:'success'},{offset:0,limit:20}))
+      const resourceBefore=await snapshot()
+      const resourceSql=await readFile('cloudbase/sql/013-member-stats-resources.sql','utf8')
+      await owner.query(resourceSql)
+      await owner.query(resourceSql)
+      assert.deepEqual(await snapshot(),resourceBefore,'resource migration must preserve members, roles and business data')
+      for(const role of ['anon','authenticated'] as const){
+        await assert.rejects(()=>asRole(role,"SELECT public.ec_resources_list('{}',0,20)"),(e:unknown)=>(e as {code:string}).code==='42501')
+        await assert.rejects(()=>asRole(role,'SELECT public.ec_member_stats()'),(e:unknown)=>(e as {code:string}).code==='42501')
+      }
+      const {resourcesSuite,TestResourceProvider}=await import('./helpers/resources-suite')
+      let resourceNow=Date.now();const resourceProvider=new TestResourceProvider()
+      await resourcesSuite(new MemberService(store,()=>resourceNow,resourceProvider),store,login.token!,resourceProvider,ms=>resourceNow+=ms)
+      assert.deepEqual(await store.list('member_stats',{}, {offset:0,limit:1}),await new PgStore(owner).list('member_stats',{}, {offset:0,limit:1}))
+      assert.deepEqual(await store.list('club_resources',{status:'all'}, {offset:0,limit:20}),await new PgStore(owner).list('club_resources',{status:'all'}, {offset:0,limit:20}))
       const {forumSuite}=await import('./helpers/forum-suite')
       let forumNow=Date.now()
       await forumSuite(new MemberService(store,()=>forumNow),store,login.token!,ms=>forumNow+=ms)

@@ -45,6 +45,7 @@ export function permissionGroup(id: string): string {
   if (id.startsWith('forum.posts.')) return '社区帖子'
   if (id === 'forum.comments.moderate') return '社区评论'
   if (id.startsWith('forum.')) return '社区举报与秩序'
+  if (id === 'resources.manage') return '社团资料'
   if (id === 'audit.read') return '操作审计'
   return '预留功能'
 }
@@ -62,5 +63,6 @@ export const PERMISSION_GROUP_ORDER = [
   '社区评论',
   '社区举报与秩序',
   '操作审计',
+  '社团资料',
   '预留功能',
 ]

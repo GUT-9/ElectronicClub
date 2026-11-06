@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import MemberStats from '../components/MemberStats.vue'
 import { FORUM_PERMISSIONS } from '../forum'
 const auth = useAuthStore()
 const sections = computed(() =>
@@ -9,6 +10,12 @@ const sections = computed(() =>
       title: '内容与活动',
       description: '发布社团动态，安排活动、报名与签到。',
       links: [
+        {
+          to: '/admin/resources',
+          name: '社团资料管理',
+          detail: '上传、校验和发布公开资料',
+          visible: auth.can('resources.manage'),
+        },
         {
           to: '/admin/events',
           name: '活动与报名',
@@ -106,6 +113,9 @@ const sections = computed(() =>
     <p class="workspace-welcome">
       你好，{{ auth.member?.nickname }}。从这里开始管理社团内容与成员服务。
     </p>
+    <MemberStats
+      v-if="auth.can('members.read') || auth.can('security.logins.read')"
+    />
     <section
       v-for="section in sections"
       :key="section.title"

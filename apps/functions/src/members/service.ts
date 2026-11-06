@@ -1,3 +1,5 @@
+import { ResourceService } from '../resources/service'
+import type { ResourceProvider } from '../resources/qiniu'
 import { safeLoginContext } from './login-context'
 import type { LoginContext, LoginMetadata } from './login-context'
 import { MediaService } from '../media/service'
@@ -71,6 +73,7 @@ export class MemberService {
   constructor(
     public store: Store,
     private clock = () => Date.now(),
+    private resourceProvider?: ResourceProvider,
   ) {}
   private now() {
     return new Date(this.clock()).toISOString()
@@ -524,6 +527,13 @@ export class MemberService {
     input: unknown,
     query: Record<string, string>,
   ): Promise<Result> {
+    if (/^\/api\/resources(?:\/|$)/.test(path))
+      return new ResourceService(
+        this.store,
+        (token, fn) => this.secure(token, fn),
+        this.clock,
+        this.resourceProvider,
+      ).execute(token, method, path, input, query)
     if (/^\/api\/media(?:\/|$)/.test(path))
       return new MediaService(
         this.store,
@@ -548,6 +558,23 @@ export class MemberService {
       token,
       async (tx, ctx) => {
         const user = ctx.member
+        if (path === '/api/members/stats' && method === 'GET') {
+          ensure(
+            ctx.super ||
+              ctx.permissions.includes('members.read') ||
+              ctx.permissions.includes('security.logins.read'),
+            403,
+            'FORBIDDEN',
+            '没有成员统计查看权限',
+          )
+          z.object({}).strict().parse(query)
+          const result = await this.store.list(
+            'member_stats',
+            {},
+            { offset: 0, limit: 1 },
+          )
+          return { data: { ...(result.items[0] as object), asOf: this.now() } }
+        }
         if (path === '/api/auth/me' && method === 'GET')
           return {
             data: {

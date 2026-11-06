@@ -42,6 +42,7 @@ const hasAdmin = computed(() =>
     'roles.assign',
     'audit.read',
     'security.logins.read',
+    'resources.manage',
     'events.delete',
     'events.registrations.review',
     'articles.delete',

@@ -18,6 +18,11 @@ export const router = createRouter({
           meta: { title: '首页' },
         },
         {
+          path: 'resources',
+          component: () => import('./views/ResourcesView.vue'),
+          meta: { title: '社团资料库' },
+        },
+        {
           path: 'about',
           component: () => import('./views/AboutView.vue'),
           meta: { title: '社团介绍' },
@@ -165,6 +170,11 @@ export const router = createRouter({
           meta: { title: '登录记录', permission: 'security.logins.read' },
         },
         {
+          path: 'resources',
+          component: () => import('./views/ResourceAdminView.vue'),
+          meta: { title: '社团资料管理', permission: 'resources.manage' },
+        },
+        {
           path: 'audit',
           component: () => import('./views/AuditView.vue'),
           meta: { title: '操作审计', permission: 'audit.read' },
@@ -205,6 +215,7 @@ router.beforeEach(async (to) => {
         'roles.assign',
         'audit.read',
         'security.logins.read',
+        'resources.manage',
         'events.registrations.read',
         'events.registrations.review',
         'events.registrations.export',

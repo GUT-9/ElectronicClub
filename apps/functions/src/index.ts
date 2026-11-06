@@ -77,7 +77,7 @@ export function createHandler(resolveService: () => MemberService) {
     }
     // Unknown public routes preserve 404 without forcing database initialization.
     if (
-      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups|forum|media|login-history)(?:\/|$)/.test(
+      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups|forum|media|login-history|resources)(?:\/|$)/.test(
         path,
       )
     )
@@ -104,7 +104,7 @@ export function createHandler(resolveService: () => MemberService) {
       if (Buffer.byteLength(raw) > 3_100_000)
         throw new ApiError(413, 'BODY_TOO_LARGE', '请求体过大')
       if (
-        /^\/api\/(forum|media)(?:\/|$)/.test(path) &&
+        /^\/api\/(forum|media|resources)(?:\/|$)/.test(path) &&
         Buffer.byteLength(raw) > 65536
       )
         throw new ApiError(
@@ -133,6 +133,7 @@ export function createHandler(resolveService: () => MemberService) {
         !(
           method === 'GET' &&
           (path.startsWith('/api/media/') ||
+            /^\/api\/resources(?:\/[a-f0-9-]{36}\/download)?$/.test(path) ||
             path.startsWith('/api/public/') ||
             /^\/api\/forum\/(boards|posts|images)(?:\/|$)/.test(path))
         )
