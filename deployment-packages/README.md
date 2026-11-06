@@ -1,33 +1,31 @@
-# 完整 CloudBase 部署包 · 活动审核、负责人和签到
+# 同源 API 登录修复与完整部署包
 
-Linux备用部署另见 [electronicclub-linux.tar.gz](electronicclub-linux.tar.gz) / [SHA256](electronicclub-linux.tar.gz.sha256)，配套[运维工具](electronicclub-operations.tar.gz) / [SHA256](electronicclub-operations.tar.gz.sha256)。[服务器说明](../docs/linux-server.md)包含备份、恢复、一条命令升级及重大更新发布规则。版本与组件摘要以[release-state.json](release-state.json)为准。本次未改变下述CloudBase云函数ZIP，也不执行生产迁移。
+源码提交 `59db3f9e038d07377dbb8a1d3f29a7e9bb4740bd`。浏览器统一请求官网 `/api`，由根目录 EdgeOne 边缘函数转发到现有后端，处理 Safari/QQ 的跨站 Cookie 问题；登录、RBAC、成员、导入、活动、报名、签到、论坛、公告、正文图片及七牛资料库 API 均保留。
 
-源码提交 `62631d1eff4c7e2348bcc5c17e1539f1681c9200`。保留既有成员登录、RBAC、导入、论坛、公告、图片、资料库和成员彻底删除API，修复活动审核入口和仅审核权限访问名单，支持姓名多选/按角色批量负责人，以及可保存的签到码有效期。
+## CloudBase
 
-下载 [electronicclub-api.zip](electronicclub-api.zip)，核对 [SHA256](electronicclub-api.zip.sha256)。ZIP根目录直接包含 `index.js`、`package.json`、`package-lock.json`、全部 `node_modules` 运行依赖、SQL及部署/私有维护文件，入口 **index.main**。不含真实密钥或生产成员资料。
+下载 [electronicclub-api.zip](electronicclub-api.zip)，核对 [SHA256](electronicclub-api.zip.sha256)。ZIP 根目录直接包含 index.js、package.json、package-lock.json、全部 node_modules 运行依赖、原迁移及部署文档，入口仍为 **index.main**。大小 12,305,635 字节；SHA-256 `f0a8af6eac8b1caff1b6db46cb7bfc337bcd1b87874c3fe052461fb559d3f619`。
 
-已有014环境升级：执行 [015-event-operations.sql](../cloudbase/sql/015-event-operations.sql) → 替换原函数ZIP并保留环境变量 → EdgeOne部署最新main。无需新增环境变量、密钥或付费服务。迁移可重复执行，只新增报名分页RPC/索引/版本记录，不改原活动、报名、账号、密码和角色分配。
+本次无需新 SQL、不初始化账号、不修改密码。若需代理后仍显示成员真实登录 IP，更新原函数 ZIP 并按[同源部署说明](../docs/same-origin-api.md)在 EdgeOne 函数与 CloudBase 原 API 函数配置相同的服务端 ECLUB_PROXY_SECRET。未配置时 Cookie 修复仍可工作，IP 则回退 CloudBase 网关元数据，可能将登录限流聚合到代理节点。
 
-- [活动流程、完整API、部署及回滚说明](../docs/event-operations-deploy.md)
-- [可选只读核对SQL](../cloudbase/sql/015-event-operations-verify.sql)
-- 前置：[成员彻底删除014](../docs/member-purge-deploy.md) · [七牛资料库013](../docs/resources-deploy.md) · [登录记录012](../docs/login-history-deploy.md) · [正文图片011](../docs/content-media-deploy.md) · [论坛009](../docs/stage4-deploy.md)
+## EdgeOne
 
-活动列表和详情提供独立报名审核及签到入口，名单自动加载。仅审核/签到权限可看所需名单，导出仍独立授权。负责人在「我负责的活动」进入，只管理获授权活动；分配其他负责人仍需events.edit。选择器提供姓名搜索、角色分类、分页多选及角色全员批量添加，最多100人，自动去重，保存后重新读取核对；角色变化不自动更改已保存的负责人名单。
+从最新 main 在仓库根目录构建，保留 npm ci、npm run build -w @electronic-club/web、apps/web/dist 和 Node22。必须让平台一起部署根目录 edge-functions，不可只上传静态 dist。旧 VITE_API_BASE_URL 不再控制浏览器请求；默认上游沿用现有 CloudBase 网关。上游服务使用许可与配额不因代理而改变。
 
-签到码默认30分钟，支持0.5–1440分钟，按活动保存。支持复制签到码/链接；成员通过报名后需本人确认签到。过期、轮换、结束签到、关闭签到功能及停用活动都会拒绝旧码。签到状态不返回摘要或旧明文码。人工补签必须填写原因；待审核补签同时批准并记录审核人，已取消/拒绝/未报名记为人工补签，不挤占普通名额。停用成员不能补签。
+发布后官网 /api/health 应为 JSON 且带 X-EClub-API-Transport: same-origin，再验证登录、刷新、退出及真实 Safari/QQ。没有平台凭据，不能把本地验证视为生产发布成功。
 
-报名在数据库分页、筛选及聚合，单页最多100，默认20；XLSX按筛选分页读取，最多10000条，超限明确要求继续筛选。旧接口继续保留。
+## Linux 与运维工具
 
-验证：`npm ci`成功；`npm run check`通过，**63项测试通过、0跳过**，包含SQL一致性、ESLint、类型及生产构建。随后小修通过针对性8项真实PG/RPC/保存测试、类型/Lint及最终前端构建。015由无CREATEROLE的本地schema owner重复执行，原数据保持，浏览器数据库角色无RPC权限；验证权限边界、多负责人保存、角色变化/停用、分页与SQL搜索、补签状态/审核人/名额和签到完整生命周期，原功能回归通过。
+[Linux 完整包](electronicclub-linux.tar.gz) / [SHA256](electronicclub-linux.tar.gz.sha256)已按本次重大更新重建，保留 Caddy 同源 HTTPS、原生 PostgreSQL 与全部后端运行依赖。[运维工具包](electronicclub-operations.tar.gz) / [SHA256](electronicclub-operations.tar.gz.sha256)内容未变化，保留原文件及时间戳。[版本摘要](release-state.json)记录各组件来源；[服务器文档](../docs/linux-server.md)包含备份、恢复和一条命令升级。本次不迁移生产数据库、域名或服务器。
 
-实际浏览器通过本机HTTP/受限PG-RPC完成界面创建活动、按角色加入两位负责人、保存刷新再编辑保留、创建者和普通成员报名/审核、普通负责人进入、60分钟有效期保存刷新、签到链接及本人确认、仅审核角色禁止导出，检查375/1440布局。手机活动列表改为卡片，名单可左右滑动。
+## 验证
 
-从最终ZIP解压后用**实际Node18.15入口**与真实本地受限PG/RPC验证角色候选分页、多人负责人、重新编辑、待审名单与审批、游客拒绝、60分钟签到、XLSX导出、结束后旧码拒绝及原管理员保持。未执行生产SQL、替换线上函数、修改真实报名或七牛空间。
+npm ci 与 npm run check 通过，69项测试通过、0跳过，含原生 PG/HTTPS RPC、旧直连、权限、CSRF、代理 Cookie/状态/附件、HMAC 伪造及过期拒绝。官方 EdgeOne CLI 配置校验和 Web API 边缘函数编译通过；残留旧 VITE_API_BASE_URL 的构建也保持同源。
 
-无新增运行依赖；`npm audit --omit=dev`仍报告既有3项moderate、0 high/critical，退出码1。原七牛等环境变量沿用各自部署说明。
+实际 Chromium 隔离 HTTPS 开启第三方 Cookie 限制后，表单登录、刷新恢复、退出撤销通过，凭证为仅当前主机的 Secure/HttpOnly/Lax Cookie，所有 API 同源、签名 IP 保留。Linux Docker 中 HTTPS、登录/RBAC、加密备份、篡改拒绝、恢复及实际升级也通过。无真实生产或 iPhone/QQ 客户端验收。
 
-大小：12,300,294字节。SHA-256：
+从最终ZIP解压后，实际Node18.15.0验证入口加载、健康检查、签名IP、篡改拒绝和Secure/HttpOnly/Lax Cookie通过，不连接生产数据库。
 
-```
-33540bdda63e6be96c7606cc5ea09fe39a4a467660b96dc11f8fa4e6de288c3b
-```
+运行依赖没有新增；npm audit --omit=dev 仍为既有3项 moderate、0 high/critical，退出码1。
+
+原功能部署入口：[活动审核与负责人015](../docs/event-operations-deploy.md) · [成员彻底删除014](../docs/member-purge-deploy.md) · [七牛资料库013](../docs/resources-deploy.md) · [登录记录012](../docs/login-history-deploy.md) · [正文图片011](../docs/content-media-deploy.md) · [论坛009](../docs/stage4-deploy.md)。
