@@ -1,0 +1,19 @@
+{
+  "generation": 1,
+  "cloud": {
+    "digest": "a10fdb157e109360b65e18994b96ab73329fba45eb660567e68cd192fde54ab7",
+    "sha256": "33540bdda63e6be96c7606cc5ea09fe39a4a467660b96dc11f8fa4e6de288c3b",
+    "sourceCommit": "21ad6a355905b542da4fb4ee53d1c83a5b46378b"
+  },
+  "linux": {
+    "digest": "7d29b91eef9f92da7b6c58b3ef0c4985fd1bd5518fa9806932721c86716fbeb2",
+    "sha256": "081d81f9d5b55717d6e0fc87b884fc0b5bb2d53dd6da9dad6a45d53e23305c0b",
+    "sourceCommit": "47962d626fbc5d61ede6313f596bd869002c7705",
+    "bytes": 10574972
+  },
+  "operations": {
+    "digest": "d5d0718258e49acdfe3dea245fe22bd3ae47c73104c092ffc510bc832cbfd573",
+    "sha256": "bf86feb312a3e9bc1faf931066886c5a91da9ef7019d936606a9d016673b9f48",
+    "sourceCommit": "47962d626fbc5d61ede6313f596bd869002c7705"
+  }
+}
