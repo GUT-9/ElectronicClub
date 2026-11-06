@@ -1,23 +1,25 @@
-# 完整 CloudBase 部署包 · 成员登录记录
+# 完整 CloudBase 部署包 · 成员统计与七牛资料库
 
-源码提交 `6cbde26b7d0893f02072c93c4d5a1912d8370fee`。保留之前所有成员、角色授权、活动/签到、文章、弹窗、社区和正文图片 API，新增姓名/学号/IP/设备登录记录与独立权限 `security.logins.read`。
+源码提交 `03156407754e7cb5adda6db38e48acb0f213d096`。保留之前所有API，新增登录改密人数聚合与公开资料库，支持管理员七牛直传、校验、发布/下架和安全删除。
 
-下载 [electronicclub-api.zip](electronicclub-api.zip) 并核对 [SHA256](electronicclub-api.zip.sha256)。ZIP 根目录包含 index.js、package.json、package-lock.json、全部 node_modules 运行依赖、SQL、私有维护和部署说明，入口 **index.main**。不包含真实凭据或生产测试数据。
+下载 [electronicclub-api.zip](electronicclub-api.zip) 并核对 [SHA256](electronicclub-api.zip.sha256)。根目录直接含 index.js、package.json、package-lock.json、全部 node_modules 运行依赖、全部 SQL、私有维护及部署文档，入口 **index.main**。不含真实凭据或生产测试数据。
 
-**升级顺序：**已有011的数据库执行 [012-login-history.sql](../cloudbase/sql/012-login-history.sql) → 替换原electronicclub-api云函数ZIP → EdgeOne更新main。保留原环境变量，不重置成员、密码或角色。默认无需额外IP环境变量，优先平台requestContext；若网关未提供会明确标注，可信转发头的可选配置见文档，不默认信任客户端X-Forwarded-For。
+**已有012升级顺序：**执行 [013-member-stats-resources.sql](../cloudbase/sql/013-member-stats-resources.sql) → 替换原electronicclub-api ZIP并配置七牛后端环境变量 → 七牛CORS → EdgeOne更新main。不重建成员或角色、不重置密码。
 
-- [登录记录部署、权限、IP来源及回滚](../docs/login-history-deploy.md)
-- [可选只读核对SQL](../cloudbase/sql/012-login-history-verify.sql)
-- 前置：[正文图片](../docs/content-media-deploy.md) · [角色成员管理](../docs/access-workspace-deploy.md) · [论坛](../docs/stage4-deploy.md)
+- [七牛配置、免费额度说明、完整API及回滚](../docs/resources-deploy.md)
+- [可选只读核对SQL](../cloudbase/sql/013-member-stats-resources-verify.sql)
+- 前置：[登录记录](../docs/login-history-deploy.md) · [正文图片](../docs/content-media-deploy.md) · [论坛](../docs/stage4-deploy.md)
 
-超级管理员默认可以查看；普通管理员需明确授予新权限，原audit.read不会获得IP/设备字段。旧记录不会伪造补出未采集信息。姓名学号关联当前档案，失败记录注明账号身份未验证；匿名化会原子清除关联IP/UA，原始操作审计响应隐藏这些字段。
+截图空间 `edwell-k12` 与HTTPS域名 `oss.gut9.cn` 可以复用。实际上传还需要在云函数中填写 QINIU_ACCESS_KEY、QINIU_SECRET_KEY、QINIU_BUCKET、QINIU_DOWNLOAD_DOMAIN，并允许前台源上传跨域。密钥不写前端、不发聊天、不提交Git。本应用仅操作electronicclub/resources/v1目录，不移动空间原有资料。默认单文件50MiB、应用预算128MiB；这些限制不代表七牛免费套餐额度，也不限制公开下载流量。
 
-`npm ci`与`npm run check`通过，56项测试全部通过且0跳过；实际本地PG/RPC验证迁移可重试、旧数据保持、授权隔离、筛选分页、IPv4/IPv6可信来源、限流去重与匿名化物理清理。浏览器通过新登录/失败尝试采集、查询和成员拒绝、UA安全显示与375/1440布局。最终ZIP的实际Node18.15入口通过采集、查询和旧审计脱敏。没有执行生产SQL或上传CloudBase函数。
+统计按当前正常账号去重，同时具备成功登录、改密审计且当前无需改密才计入；禁用/删除、匿名化及重置后待改密排除。超级管理员、members.read或security.logins.read可查。资料管理需resources.manage，游客只见已发布条目。
 
-未新增运行依赖，当前audit报告3 moderate，0 high/critical。浏览器标识只能推断设备/系统，不能作为已验证硬件或人员身份。
+验证：npm ci与npm run check通过，58项测试全部通过、0跳过，SQL/ESLint/TypeScript和生产构建通过；真实本地PG/RPC验证旧数据保持、迁移重复、受限权限、统计去重、并发预算及清理。浏览器验证直传界面、发布/游客下载、普通成员禁止管理与375/1024/1440布局。最终ZIP的实际Node18.15入口通过完整流程。**七牛网络使用明确测试替身，没有真实用户密钥，未执行生产SQL、上传云函数或写入真实七牛空间。**
 
-大小：12,242,171 字节。SHA-256：
+无新增运行依赖；当前audit为3 moderate，0 high/critical。实际启用需按文档配置密钥、域名和CORS；免费存储/流量/CDN权益以七牛账户套餐为准。
+
+大小：12,272,832 字节。SHA-256：
 
 ```
-a71172eb87de5999439b3913992175c52552c64affd89f4d427bb1135107515c
+6d2977ac637431b19780f50fb5bd68f268d1b98ab1a1f05cffeddd665c56bed2
 ```
