@@ -17,7 +17,7 @@ const methods = new Set([
   'OPTIONS',
 ])
 const maxBody = 3_100_000
-const revision = 'four-digit-v4'
+const revision = 'gateway-body-v5'
 function failure(status: number, code: string, message: string) {
   return new Response(
     JSON.stringify({ success: false, error: { code, message } }),
@@ -43,12 +43,19 @@ async function bodyBytes(request: Request) {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      size += value.byteLength
+      // Edge runtimes can yield ArrayBuffer or views, rather than Uint8Array.
+      // Uint8Array.set(ArrayBuffer) silently copies nothing, producing NULs.
+      let chunk: Uint8Array
+      if (value instanceof ArrayBuffer) chunk = new Uint8Array(value)
+      else if (ArrayBuffer.isView(value))
+        chunk = new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+      else throw new Error('Unsupported request stream chunk')
+      size += chunk.byteLength
       if (size > maxBody) {
         await reader.cancel()
         return null
       }
-      chunks.push(value)
+      chunks.push(new Uint8Array(chunk))
     }
   } finally {
     reader.releaseLock()

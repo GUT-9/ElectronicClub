@@ -72,3 +72,4 @@ await copyFile('../../docs/member-purge-deploy.md', 'deploy/DEPLOY-MEMBER-PURGE.
 await copyFile('../../docs/event-operations-deploy.md', 'deploy/DEPLOY-EVENT-OPERATIONS.md')
 await copyFile('../../docs/same-origin-api.md', 'deploy/DEPLOY-SAME-ORIGIN.md')
 await copyFile('../../docs/proxy-secret-config-fix.md', 'deploy/proxy-secret-config-fix.md')
+await copyFile('../../docs/gateway-body-deploy.md', 'deploy/DEPLOY-GATEWAY-BODY.md')

@@ -136,9 +136,47 @@ test('proxy rejects invalid JSON UTF-8 before forwarding and uses ArrayBuffer fo
     fetcher,
   )
   assert.equal(response.status, 200)
-  assert.equal(response.headers.get('x-eclub-api-revision'), 'four-digit-v4')
+  assert.equal(response.headers.get('x-eclub-api-revision'), 'gateway-body-v5')
   assert.ok(binary instanceof ArrayBuffer)
   assert.deepEqual(new Uint8Array(binary), new Uint8Array([0, 128, 255]))
+})
+
+test('edge ArrayBuffer and DataView chunks preserve exact JSON instead of silently forwarding NUL bytes', async () => {
+  const json = JSON.stringify({
+    studentId: '00STREAM',
+    password: 'Quote"\\中文🙂',
+  })
+  const bytes = new TextEncoder().encode(json)
+  const padded = new Uint8Array(bytes.length + 8)
+  padded.set(bytes, 4)
+  for (const chunk of [
+    bytes.buffer,
+    new DataView(padded.buffer, 4, bytes.length),
+  ]) {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(chunk)
+        controller.close()
+      },
+    })
+    let forwarded: unknown
+    const result = await proxyApi(
+      {
+        request: new Request(origin + '/api/auth/login', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: stream,
+          duplex: 'half',
+        } as RequestInit),
+      },
+      async (_url, options) => {
+        forwarded = options!.body
+        return new Response('{}')
+      },
+    )
+    assert.equal(result.status, 200)
+    assert.equal(forwarded, json)
+  }
 })
 
 test('proxy secret normalization supports copied configuration and rejects malformed keys without changing key case', () => {
@@ -426,7 +464,7 @@ test('signed EdgeOne metadata uses platform client IP and interoperates with bac
   }
 })
 
-test('same-origin login, refresh, RBAC, CSRF and logout work through the real handler; the old direct API stays usable', async () => {
+test('same-origin ArrayBuffer streams and string false gateway flags preserve login, refresh, RBAC, CSRF and logout; legacy API stays usable', async () => {
   const keys = [
     'ALLOWED_ORIGIN',
     'COOKIE_SECURE',
@@ -454,6 +492,7 @@ test('same-origin login, refresh, RBAC, CSRF and logout work through the real ha
       httpMethod: options?.method,
       headers: Object.fromEntries(new Headers(options?.headers)),
       body: options?.body ? await new Response(options.body).text() : undefined,
+      isBase64Encoded: 'false',
       queryStringParameters: Object.fromEntries(url.searchParams),
       requestContext: { sourceIp: '192.0.2.1' },
     })
@@ -475,8 +514,19 @@ test('same-origin login, refresh, RBAC, CSRF and logout work through the real ha
             'user-agent': 'Safari test',
             ...(cookie ? { cookie } : {}),
           },
-          body: data === undefined ? undefined : JSON.stringify(data),
-        }),
+          body:
+            data === undefined
+              ? undefined
+              : new ReadableStream<ArrayBuffer>({
+                  start(controller) {
+                    controller.enqueue(
+                      new TextEncoder().encode(JSON.stringify(data)).buffer,
+                    )
+                    controller.close()
+                  },
+                }),
+          duplex: 'half',
+        } as RequestInit),
         env: { ECLUB_PROXY_SECRET: '1234' },
         eo: { clientIp: '203.0.113.5' },
       },

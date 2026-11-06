@@ -1,6 +1,11 @@
 import { loginContext } from './members/login-context'
 import { sessionCookie, sessionCookieConfig } from './members/cookie'
 import { randomUUID } from 'node:crypto'
+import {
+  BACKEND_BODY_REVISION,
+  HttpBodyError,
+  parseHttpBody,
+} from './http-body'
 import { DatabaseFailure } from './members/pg-store'
 import { ZodError } from 'zod'
 import { ApiError } from './members/model'
@@ -12,8 +17,8 @@ export interface HttpEvent {
   path?: string
   httpMethod?: string
   headers?: Record<string, string | undefined>
-  body?: string
-  isBase64Encoded?: boolean
+  body?: unknown
+  isBase64Encoded?: boolean | string
   queryStringParameters?: Record<string, string>
   requestContext?: {
     sourceIp?: string
@@ -36,6 +41,7 @@ export function createHandler(resolveService: () => MemberService) {
       'Cache-Control': 'no-store',
       Vary: 'Origin',
       'X-Content-Type-Options': 'nosniff',
+      'X-EClub-Backend-Revision': BACKEND_BODY_REVISION,
     }
     const requestHeaders = Object.fromEntries(
       Object.entries(event.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]),
@@ -98,28 +104,12 @@ export function createHandler(resolveService: () => MemberService) {
         )
           throw new ApiError(415, 'CONTENT_TYPE', '请使用application/json')
       }
-      const raw = event.isBase64Encoded
-        ? Buffer.from(event.body ?? '', 'base64').toString('utf8')
-        : (event.body ?? '')
-      if (Buffer.byteLength(raw) > 3_100_000)
-        throw new ApiError(413, 'BODY_TOO_LARGE', '请求体过大')
-      if (
-        /^\/api\/(forum|media|resources)(?:\/|$)/.test(path) &&
-        Buffer.byteLength(raw) > 65536
+      const input = parseHttpBody(
+        event,
+        /^\/api\/(forum|media|resources)(?:\/|$)/.test(path)
+          ? 65536
+          : 3_100_000,
       )
-        throw new ApiError(
-          413,
-          'BODY_TOO_LARGE',
-          '内容请求超过64KB，请分片上传图片或缩短正文',
-        )
-      let input: unknown = {}
-      if (raw) {
-        try {
-          input = JSON.parse(raw)
-        } catch {
-          throw new ApiError(400, 'INVALID_JSON', 'JSON格式错误')
-        }
-      }
       const cookieName = sessionCookieConfig().name
       const token =
         (requestHeaders.cookie ?? '')
@@ -287,6 +277,18 @@ export function createHandler(resolveService: () => MemberService) {
         ? respond(result.status ?? 400, { success: false, error: result.error })
         : respond(200, { success: true, data: result.data })
     } catch (error) {
+      if (error instanceof HttpBodyError) {
+        headers['X-EClub-Body-Error'] = error.diagnostic.stage
+        console.error(
+          JSON.stringify({
+            requestId,
+            category: 'transport',
+            revision: BACKEND_BODY_REVISION,
+            code: error.code,
+            ...error.diagnostic,
+          }),
+        )
+      }
       if (
         error instanceof ApiError &&
         error.status === 401 &&

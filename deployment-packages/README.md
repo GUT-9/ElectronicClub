@@ -1,5 +1,7 @@
 # 当前云环境：4位数字代理配置
 
+最新修复：[网关正文与边缘流块](../docs/gateway-body-deploy.md)。本次需更新云函数ZIP并重部署EdgeOne，SQL及环境变量均不改，4位数字继续使用。两端版本头均应为gateway-body-v5。
+
 源码提交 `c7cebd83f8f78d1484139b0da6a0f5792d1f5a9d`。按用户要求，ECLUB_PROXY_SECRET现在接受4位数字，前导零保留，旧64位配置仍兼容。只调整代理IP签名配置，不改变成员登录密码、Cookie会话或RBAC规则。
 
 ## 本次操作顺序
