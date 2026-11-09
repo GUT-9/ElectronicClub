@@ -1,4 +1,16 @@
-# 当前更新：公开源读回诊断修复（2026-11-09）
+# 当前更新：公开读取超时API兼容修复（2026-11-09）
+
+公开源配置已确认是oss.gut9.cn，浏览器可读取site.json，但EdgeOne公开接口返回PUBLIC_SITE_NETWORK。修复公开读取对AbortSignal.timeout静态方法的依赖，使用AbortController与定时器，保留10秒截止和正文大小限制。该运行时缺陷会被旧代码误报为网络失败；具体生产恢复情况仍需部署后确认。
+
+当前环境操作顺序：无需新增SQL；下载[完整CloudBase ZIP](electronicclub-api.zip)及[SHA256](electronicclub-api.zip.sha256)，上传替换现有electronicclub-api，入口index.main不变；再在EdgeOne部署最新main到生产。无需新增密钥或修改环境变量，保留CloudBase与EdgeOne的PUBLIC_SITE_ORIGIN=https://oss.gut9.cn。核对/api/public-site/config及/api/public/articles。已有016无需重跑，不初始化成员或管理员。
+
+类型检查、lint、EdgeOne打包、全站构建及26项相关回归通过（0失败/跳过），含禁用AbortSignal.timeout后读取JSON和图片、非迭代URLSearchParams、原登录JSON/Cookie、公开500次读取0SQL。未对真实生产进行压测或修改配置。此次未新增依赖；未重新执行完整数据库回归或依赖审计，前次审计仍为既有3项moderate。小修复不刷新Linux/运维归档。
+
+当前ZIP：12,358,909字节；SHA256：`c88d8a63930c46df69e7fb666b684e5eb823d45ab5a753208ca16f97d29d66d3`。源码及包已准备，本地最终ZIP运行时核对后交付；生产上传及EdgeOne部署需用户操作。
+
+---
+
+# 上一版更新：公开源读回诊断修复（2026-11-09）
 
 后台原先的“已同步”只确认上传，无法证明前台配置的公开域名可读。现在同步会从公开源读回并核对版本；后台分别展示上传状态、读取结果、CloudBase与前台实际读取地址，以及安全错误码。尚未确认用户生产源的具体HTTP响应，不把本地网络代理阻断当成生产403。
 
