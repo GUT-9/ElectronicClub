@@ -28,6 +28,6 @@
 
 ## 交付与回滚
 
-[版本摘要](release-state.json)记录包对应源码与校验。本次为部署架构大改，generation=3，按约定刷新发生变化的Linux/运维归档；正式服务器迁移仍未执行。
+[版本摘要](release-state.json)记录包对应源码与校验。本次为部署架构大改，generation=4，按约定刷新发生变化的Linux/运维归档；正式服务器迁移仍未执行。
 
 回滚先删EdgeOne公开源变量并部署，再将CloudBase PUBLIC_SITE_MODE改为database；删除CloudBase公开源变量可停止自动同步，恢复旧函数和前端即可。016是增量函数，不删表、不恢复或重置成员密码。七牛副本不代替数据库备份，恢复数据库后应重新同步。

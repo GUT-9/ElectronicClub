@@ -17,8 +17,18 @@ import { encryptTimed, decryptTimed } from '../apps/functions/src/public-site-ti
 
 class MeasuredStore implements Store {
   calls = 0
+  commits: string[][] = []
   constructor(private inner: Store) {}
-  async run<T>(fn: (tx: Transaction) => Promise<T>) { this.calls++; return this.inner.run(fn) }
+  async run<T>(fn: (tx: Transaction) => Promise<T>) {
+    this.calls++
+    const writes: string[] = []
+    const value = await this.inner.run((tx) => fn({ ...tx, set: async (c, id, data) => {
+      writes.push(c + '/' + id)
+      return tx.set(c, id, data)
+    } }))
+    this.commits.push(writes)
+    return value
+  }
   async read<T>(c: string, id: string) { this.calls++; return this.inner.read<T>(c, id) }
   async list<T>(c: string, f: Record<string, unknown>, o: ListOptions) { this.calls++; return this.inner.list<T>(c, f, o) }
 }
@@ -81,8 +91,11 @@ test('public object delivery: privacy, no database reads, failure isolation, rec
     assert.equal((await service.execute('', 'GET', '/api/public/popup', {}, {})).data, null, 'Superseded announcement must not reappear after newer one expires')
     assert.equal(store.calls, 0, 'Scheduled announcements and gated images must not wake SQL at their release time')
     storage.failPut = true
+    store.commits = []
     const failed = await service.execute(token, 'POST', `/api/articles/${article.id}/update`, { title: 'Saved despite storage outage' }, {})
     assert.equal(failed.publicSync, 'failed')
+    assert.ok(store.commits.some((writes) => writes.includes('articles/' + article.id) && writes.includes('system/public-site:publisher')),
+      'Content changes and the durable dirty marker must commit in the same transaction')
     assert.equal((await store.read<{ title: string }>('articles', article.id))!.title, 'Saved despite storage outage')
     storage.failPut = false
     assert.equal((await service.execute(token, 'POST', '/api/public-site/rebuild', {}, {})).publicSync, 'ready')

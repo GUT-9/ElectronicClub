@@ -1,4 +1,4 @@
 {
-  "generation": 3,
-  "reason": "Public object-storage delivery, additive export RPC, publication recovery and explicit monthly resource budget; preserve live member authorization on CloudBase and Linux"
+  "generation": 4,
+  "reason": "Public object-storage delivery with a durable transactional publication marker, additive export RPC, encrypted schedules and explicit monthly resource budget on CloudBase and Linux"
 }

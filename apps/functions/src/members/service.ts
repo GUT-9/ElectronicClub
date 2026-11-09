@@ -1,6 +1,6 @@
 import { ResourceService } from '../resources/service'
 import { PublicReadCache, publicReadKey } from '../public-read-cache'
-import { PublicSitePublisher, changesPublicContent } from '../public-site-publisher'
+import { PublicSitePublisher, changesPublicContent, markPublicDirty } from '../public-site-publisher'
 import { isPublicSitePath } from '@electronic-club/shared/public-site'
 import type { PublicSiteStorage } from '../public-site-storage'
 import { QiniuPublicSiteStorage } from '../public-site-storage'
@@ -199,6 +199,7 @@ export class MemberService {
     token: string,
     fn: (tx: Transaction, ctx: Context) => Promise<T>,
     activation = false,
+    publicMutation = false,
   ) {
     return this.store.run(async (tx) => {
       const control = await this.control(tx, false)
@@ -219,6 +220,7 @@ export class MemberService {
       // Preserve the common security mutation fence and optimistic read-set
       // validation, without writing this shared row on every page/image read.
       if (mutated) {
+        if (publicMutation) await markPublicDirty(tx)
         control.revision++
         await tx.set('system', 'control', control)
       }
@@ -612,6 +614,7 @@ export class MemberService {
     input: unknown,
     query: Record<string, string>,
   ): Promise<Result> {
+    const publicMutation = method !== 'GET' && Boolean(process.env.PUBLIC_SITE_MODE === 'qiniu' || process.env.PUBLIC_SITE_ORIGIN) && changesPublicContent(path)
     if (path === '/api/public-site/status' && method === 'GET') {
       await this.secure(token, async (_tx, ctx) => ensure(ctx.super, 403, 'FORBIDDEN', '仅超级管理员可管理公开发布'))
       return { data: await this.publisher.status() }
@@ -627,26 +630,26 @@ export class MemberService {
     if (/^\/api\/resources(?:\/|$)/.test(path))
       return new ResourceService(
         this.store,
-        (token, fn) => this.secure(token, fn),
+        (token, fn) => this.secure(token, fn, false, publicMutation),
         this.clock,
         this.resourceProvider,
       ).execute(token, method, path, input, query)
     if (/^\/api\/media(?:\/|$)/.test(path))
       return new MediaService(
         this.store,
-        (token, fn) => this.secure(token, fn),
+        (token, fn) => this.secure(token, fn, false, publicMutation),
         this.clock,
       ).execute(token, method, path, input)
     if (/^\/api\/forum(?:\/|$)/.test(path))
       return new ForumService(
         this.store,
-        (token, fn) => this.secure(token, fn),
+        (token, fn) => this.secure(token, fn, false, publicMutation),
         this.clock,
       ).execute(token, method, path, input, query)
     if (/^\/api\/(?:public|events|articles|popups)(?:\/|$)/.test(path))
       return new Stage3Service(
         this.store,
-        (token, fn) => this.secure(token, fn),
+        (token, fn) => this.secure(token, fn, false, publicMutation),
         this.clock,
       ).execute(token, method, path, input, query)
     if (method === 'POST' && path === '/api/imports/preview')
@@ -1395,6 +1398,7 @@ export class MemberService {
         throw new ApiError(404, 'NOT_FOUND', '接口不存在')
       },
       ['/api/auth/me', '/api/auth/logout', '/api/auth/password'].includes(path),
+      publicMutation,
     )
   }
 }

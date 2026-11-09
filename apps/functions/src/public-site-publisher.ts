@@ -19,6 +19,10 @@ type Export = Record<string, Record<string, unknown>[]>
 type State = { requested: number; published: number; dirty: boolean; owner: string | null; until: number; generatedAt?: string; pendingAssets?: number; cleanupPending?: number }
 type AssetRecord = { id: string; path: string; asset: PublicAsset; status: 'pending' | 'ready' | 'deleting' }
 const stateKey = 'public-site:publisher'
+export async function markPublicDirty(tx: Transaction) {
+  const state = await tx.get<State>('system', stateKey) ?? { requested: 0, published: 0, dirty: true, owner: null, until: 0 }
+  await tx.set('system', stateKey, { ...state, requested: state.requested + 1, dirty: true })
+}
 export function changesPublicContent(path: string) {
   if (/^\/api\/(articles|popups)(?:\/|$)/.test(path)) return true
   if (/^\/api\/events(?:\/|$)/.test(path)) return !/\/checkin$/.test(path)
