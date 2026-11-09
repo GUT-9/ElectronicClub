@@ -42,6 +42,7 @@ export function createHandler(resolveService: () => MemberService) {
       Vary: 'Origin',
       'X-Content-Type-Options': 'nosniff',
       'X-EClub-Backend-Revision': BACKEND_BODY_REVISION,
+      'X-EClub-Data-Revision': 'db-efficiency-v1',
     }
     const requestHeaders = Object.fromEntries(
       Object.entries(event.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]),

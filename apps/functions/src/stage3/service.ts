@@ -249,12 +249,21 @@ export class Stage3Service {
           updatedAt: now,
         })
     }
-    await tx.set('popup_state', 'current', {
-      id: 'current',
-      popupId: chosen?.id ?? null,
-      version: chosen?.version ?? null,
-      updatedAt: now,
-    })
+    const current = await tx.get<{
+      popupId: string | null
+      version: string | null
+    }>('popup_state', 'current')
+    if (
+      !current ||
+      current.popupId !== (chosen?.id ?? null) ||
+      current.version !== (chosen?.version ?? null)
+    )
+      await tx.set('popup_state', 'current', {
+        id: 'current',
+        popupId: chosen?.id ?? null,
+        version: chosen?.version ?? null,
+        updatedAt: now,
+      })
     return chosen ? { ...chosen, state: 'active' } : null
   }
   async execute(

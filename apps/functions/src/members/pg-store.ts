@@ -123,13 +123,17 @@ export class PgStore implements Store {
       await client.query("SET LOCAL idle_in_transaction_session_timeout='30s'")
       await client.query('SELECT pg_advisory_xact_lock(1991,1)')
       stage = 'transaction'
+      const snapshots = new Map<string, Promise<unknown>>()
       const tx: Transaction = {
         get: async <T>(c: string, id: string) => {
-          const result = await client.query(
-            `SELECT data FROM ${table(c)} WHERE id=$1`,
-            [id],
-          )
-          return (result.rows[0]?.data ?? null) as T | null
+          const key = c + '/' + id
+          if (!snapshots.has(key))
+            snapshots.set(
+              key,
+              client.query(`SELECT data FROM ${table(c)} WHERE id=$1`, [id])
+                .then((result) => result.rows[0]?.data ?? null),
+            )
+          return structuredClone(await snapshots.get(key)) as T | null
         },
         set: async (c, id, value) => {
           await client.query(
@@ -147,9 +151,14 @@ export class PgStore implements Store {
                 [id, role],
               )
           }
+          // Writes may fire privacy/relationship triggers on other tables.
+          snapshots.clear()
+          snapshots.set(c + '/' + id, Promise.resolve(structuredClone(value)))
         },
         remove: async (c, id) => {
           await client.query(`DELETE FROM ${table(c)} WHERE id=$1`, [id])
+          // Deletion triggers can update related rows (e.g. member privacy).
+          snapshots.clear()
         },
       }
       const result = await fn(tx)

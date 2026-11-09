@@ -6,6 +6,8 @@ import { request, RequestError } from '../member-api'
 export const useAuthStore = defineStore('auth', () => {
   const identity = ref<Identity | null>(null)
   const restored = ref(false)
+  let restoring: Promise<void> | undefined
+  let generation = 0
   const member = computed(() => identity.value?.member ?? null)
   function can(permission: string) {
     return Boolean(
@@ -14,16 +16,29 @@ export const useAuthStore = defineStore('auth', () => {
   }
   async function restore(force = false) {
     if (restored.value && !force) return
-    try {
-      identity.value = await request<Identity>('/auth/me')
-      restored.value = true
-    } catch (error) {
-      identity.value = null
-      if (error instanceof RequestError && error.status === 401) {
+    if (restoring) return restoring
+    const current = generation
+    const pending = (async () => {
+      try {
+        const value = await request<Identity>('/auth/me')
+        if (current !== generation) return
+        identity.value = value
         restored.value = true
-        return
+      } catch (error) {
+        if (current !== generation) return
+        identity.value = null
+        if (error instanceof RequestError && error.status === 401) {
+          restored.value = true
+          return
+        }
+        throw error
       }
-      throw error
+    })()
+    restoring = pending
+    try {
+      await pending
+    } finally {
+      if (restoring === pending) restoring = undefined
     }
   }
   async function login(studentId: string, password: string) {
@@ -50,6 +65,8 @@ export const useAuthStore = defineStore('auth', () => {
     clear()
   }
   function clear() {
+    generation++
+    restoring = undefined
     identity.value = null
     restored.value = true
   }

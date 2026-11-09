@@ -150,6 +150,9 @@ export class HttpStore implements Store {
         },
       }
       const result = await fn(tx)
+      // List RPCs already execute as one SQL statement. With no row snapshots
+      // or writes there is nothing for ec_commit to validate or persist.
+      if (!reads.size && !writes.size) return result
       // One database function call is one real SQL transaction. Never send HTTP BEGIN/COMMIT.
       const commit = (await this.rpc('ec_commit', {
         p_reads: (await Promise.all(reads.values())).map(

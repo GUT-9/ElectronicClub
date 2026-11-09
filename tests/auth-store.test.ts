@@ -42,3 +42,35 @@ test('login is complete only after cookie-backed session recovery; 200 then 401 
     globalThis.fetch = original
   }
 })
+
+test('concurrent session restores share a request and a stale response cannot undo clear', async () => {
+  const original = globalThis.fetch
+  try {
+    setActivePinia(createPinia())
+    const store = useAuthStore()
+    let calls = 0
+    let finish!: (response: Response) => void
+    globalThis.fetch = async () => {
+      calls++
+      return new Promise<Response>((resolve) => { finish = resolve })
+    }
+    const first = store.restore(), second = store.restore(true)
+    assert.equal(calls, 1)
+    store.clear()
+    finish(new Response(JSON.stringify({ success: true, data: {
+      member: { uid: 'stale-session' }, permissions: [], roles: [], super: false,
+    } })))
+    await Promise.all([first, second])
+    assert.equal(store.identity, null)
+    assert.equal(store.restored, true)
+    const third = store.restore(true)
+    assert.equal(calls, 2)
+    finish(new Response(JSON.stringify({ success: false, error: {
+      code: 'UNAUTHENTICATED', message: '请先登录',
+    } }), { status: 401 }))
+    await third
+    assert.equal(store.identity, null)
+  } finally {
+    globalThis.fetch = original
+  }
+})

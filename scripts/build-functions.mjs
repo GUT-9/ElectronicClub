@@ -73,3 +73,4 @@ await copyFile('../../docs/event-operations-deploy.md', 'deploy/DEPLOY-EVENT-OPE
 await copyFile('../../docs/same-origin-api.md', 'deploy/DEPLOY-SAME-ORIGIN.md')
 await copyFile('../../docs/proxy-secret-config-fix.md', 'deploy/proxy-secret-config-fix.md')
 await copyFile('../../docs/gateway-body-deploy.md', 'deploy/DEPLOY-GATEWAY-BODY.md')
+await copyFile('../../docs/database-efficiency-deploy.md', 'deploy/DEPLOY-DATABASE-EFFICIENCY.md')

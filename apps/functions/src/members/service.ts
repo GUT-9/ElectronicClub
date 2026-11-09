@@ -1,4 +1,5 @@
 import { ResourceService } from '../resources/service'
+import { PublicReadCache, publicReadKey } from '../public-read-cache'
 import type { ResourceProvider } from '../resources/qiniu'
 import { safeLoginContext } from './login-context'
 import type { LoginContext, LoginMetadata } from './login-context'
@@ -70,20 +71,25 @@ const failure = (status: number, code: string, message: string): Result => ({
   error: { code, message },
 })
 export class MemberService {
+  private publicCache: PublicReadCache<Result>
   constructor(
     public store: Store,
     private clock = () => Date.now(),
     private resourceProvider?: ResourceProvider,
-  ) {}
+  ) {
+    this.publicCache = new PublicReadCache(clock)
+  }
   private now() {
     return new Date(this.clock()).toISOString()
   }
-  private async control(tx: Transaction) {
+  private async control(tx: Transaction, mutate = true) {
     const control = await tx.get<Control>('system', 'control')
     ensure(control?.initialized, 503, 'NOT_INITIALIZED', '成员系统尚未初始化')
     // All security mutations contend on one document: prevents write-skew for last-super and role use counts.
-    control.revision++
-    await tx.set('system', 'control', control)
+    if (mutate) {
+      control.revision++
+      await tx.set('system', 'control', control)
+    }
     return control
   }
   private async audit(
@@ -167,11 +173,16 @@ export class MemberService {
         'ACTIVATION_EXPIRED',
         '激活凭据已过期，请联系管理员重置',
       )
-    session.idleExpiresAt = Math.min(
+    const idleExpiresAt = Math.min(
       session.expiresAt,
       this.clock() + 30 * 60_000,
     )
-    await tx.set('sessions', sessionId, session)
+    // Coalesce idle renewal to once per minute. Expiry and revocation are still
+    // checked on every request; no identity or permission cache is introduced.
+    if (idleExpiresAt - session.idleExpiresAt >= 60_000) {
+      session.idleExpiresAt = idleExpiresAt
+      await tx.set('sessions', sessionId, session)
+    }
     return { ...(await this.identity(tx, user)), control, sessionId }
   }
   private async secure<T>(
@@ -179,12 +190,30 @@ export class MemberService {
     fn: (tx: Transaction, ctx: Context) => Promise<T>,
     activation = false,
   ) {
-    return this.store.run(async (tx) =>
-      fn(
-        tx,
-        await this.authenticate(tx, token, await this.control(tx), activation),
-      ),
-    )
+    return this.store.run(async (tx) => {
+      const control = await this.control(tx, false)
+      const ctx = await this.authenticate(tx, token, control, activation)
+      let mutated = false
+      const tracked: Transaction = {
+        get: (collection, id) => tx.get(collection, id),
+        set: async (collection, id, value) => {
+          mutated = true
+          await tx.set(collection, id, value)
+        },
+        remove: async (collection, id) => {
+          mutated = true
+          await tx.remove(collection, id)
+        },
+      }
+      const result = await fn(tracked, ctx)
+      // Preserve the common security mutation fence and optimistic read-set
+      // validation, without writing this shared row on every page/image read.
+      if (mutated) {
+        control.revision++
+        await tx.set('system', 'control', control)
+      }
+      return result
+    })
   }
   private async manageable(tx: Transaction, ctx: Context, user: Member) {
     const identity = await this.identity(tx, user)
@@ -525,6 +554,32 @@ export class MemberService {
     })
   }
   async execute(
+    token: string,
+    method: string,
+    path: string,
+    input: unknown,
+    query: Record<string, string>,
+  ): Promise<Result> {
+    const key = publicReadKey(method, path, query)
+    if (key) {
+      return this.publicCache.load(
+        key,
+        60_000,
+        () => this.executeUncached(token, method, path, input, query),
+      )
+    }
+    if (method === 'GET')
+      return this.executeUncached(token, method, path, input, query)
+    // Clear before and after mutations, including failures: partial external
+    // operations and in-flight reads must not repopulate obsolete public data.
+    this.publicCache.clear()
+    try {
+      return await this.executeUncached(token, method, path, input, query)
+    } finally {
+      this.publicCache.clear()
+    }
+  }
+  private async executeUncached(
     token: string,
     method: string,
     path: string,

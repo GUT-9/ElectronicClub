@@ -4,7 +4,7 @@
 
 当前代码包含成员账号/强制改密/Excel导入/动态RBAC，以及活动报名签到、新闻公告、全站弹窗和第四阶段电子社区。论坛支持版块、本人发帖与附图、评论回复、点赞收藏、站内通知、举报，以及按权限配置的审核/置顶/加精/锁帖/限制。采用真实CloudBase PostgreSQL HTTPS RPC，可选原生pg，不使用生产内存回退。
 
-**最新升级顺序：已有 012 的数据库先执行 [013-member-stats-resources.sql](cloudbase/sql/013-member-stats-resources.sql)，再上传最新完整云函数 ZIP，最后更新 EdgeOne 前端。缺少前置迁移时先依次补齐。不要重新初始化数据库或管理员。**
+**最新更新为数据库访问优化：已部署现有功能的环境无需执行 SQL，替换完整云函数 ZIP，再重新部署 EdgeOne main；环境变量保持。不要重新初始化数据库或管理员。** [本次部署与缓存说明](docs/database-efficiency-deploy.md)。
 
 - [成员使用统计与七牛公开资料库部署](docs/resources-deploy.md)
 - [成员登录记录：姓名、学号、IP、设备与权限/隐私说明](docs/login-history-deploy.md)
