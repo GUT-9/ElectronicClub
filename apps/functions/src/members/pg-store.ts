@@ -126,11 +126,12 @@ export class PgStore implements Store {
       const snapshots = new Map<string, Promise<unknown>>()
       const tx: Transaction = {
         get: async <T>(c: string, id: string) => {
+          const name = table(c)
           const key = c + '/' + id
           if (!snapshots.has(key))
             snapshots.set(
               key,
-              client.query(`SELECT data FROM ${table(c)} WHERE id=$1`, [id])
+              client.query(`SELECT data FROM ${name} WHERE id=$1`, [id])
                 .then((result) => result.rows[0]?.data ?? null),
             )
           return structuredClone(await snapshots.get(key)) as T | null

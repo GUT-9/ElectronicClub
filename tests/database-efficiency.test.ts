@@ -4,6 +4,8 @@ import { PublicReadCache, publicReadKey } from '../apps/functions/src/public-rea
 import { MemberService } from '../apps/functions/src/members/service'
 import { MemoryStore } from '../apps/functions/src/members/memory-store'
 import { HttpStore } from '../apps/functions/src/members/http-store'
+import { PgStore } from '../apps/functions/src/members/pg-store'
+import type { Pool } from 'pg'
 import type { Transaction } from '../apps/functions/src/members/store'
 import type { ClubArticle, Identity } from '@electronic-club/shared'
 import { digest } from '../apps/functions/src/members/crypto'
@@ -145,4 +147,47 @@ test('HTTP empty transactions avoid commit; row snapshots still validate and ret
     return b!.value
   }), 2)
   assert.deepEqual(calls, ['ec_read', 'ec_commit', 'ec_read', 'ec_commit'])
+})
+
+test('native transaction snapshots reduce queries, isolate objects and retain write/collection validation', async () => {
+  const rows = new Map<string, object>([['test', { value: 1 }]])
+  let reads = 0
+  const client = {
+    release() {},
+    async query(sql: string, args: unknown[] = []) {
+      const id = String(args[0])
+      if (sql.startsWith('SELECT data')) {
+        reads++
+        return { rows: [{ data: structuredClone(rows.get(id) ?? null) }] }
+      }
+      if (sql.startsWith('INSERT')) rows.set(id, JSON.parse(String(args[1])))
+      if (sql.startsWith('DELETE')) rows.delete(id)
+      return { rows: [] }
+    },
+  }
+  const pool = {
+    on() {},
+    async query() { return { rows: [{ rolsuper: false, rolcreatedb: false, rolcreaterole: false, rolreplication: false }] } },
+    async connect() { return client },
+  }
+  const store = new PgStore(pool as unknown as Pool)
+  await store.run(async (tx) => {
+    const [first, second] = await Promise.all([
+      tx.get<{ value: number }>('system', 'test'),
+      tx.get<{ value: number }>('system', 'test'),
+    ])
+    first!.value = 999
+    assert.equal(second!.value, 1)
+    assert.equal(reads, 1)
+    await tx.get('system', 'a/b')
+    await assert.rejects(tx.get('system/a', 'b'), /INVALID_TABLE/)
+    await tx.set('system', 'test', { value: 2 })
+    assert.deepEqual(await tx.get('system', 'test'), { value: 2 })
+    assert.equal(reads, 2)
+    await tx.remove('system', 'test')
+    assert.equal(await tx.get('system', 'test'), null)
+    assert.equal(reads, 3)
+  })
+  await store.run(async (tx) => { await tx.get('system', 'test') })
+  assert.equal(reads, 4)
 })
