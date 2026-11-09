@@ -19,9 +19,20 @@ const methods = new Set([
 ])
 const maxBody = 3_100_000
 const revision = 'gateway-body-v5'
-function failure(status: number, code: string, message: string) {
+type ProxyStage = 'prepare' | 'headers' | 'signature' | 'body' | 'fetch' | 'response'
+type Trace = { stage: ProxyStage }
+function diagnosticFailure(error: unknown, stage: ProxyStage, timeout = false) {
+  // Never return platform exception messages, causes, URLs or request data.
+  const code = error instanceof Error && 'code' in error ? error.code : undefined
+  const reason = timeout ? 'timeout' : code === 'ENOTFOUND' || code === 'EAI_AGAIN' ? 'dns' :
+    code === 'ECONNREFUSED' ? 'connection_refused' : code === 'ECONNRESET' ? 'connection_reset' :
+    error instanceof TypeError ? 'type_error' : 'runtime_error'
+  return failure(timeout ? 504 : 502, 'API_PROXY_UNAVAILABLE',
+    `API转发失败（${stage}/${reason}），请将此诊断信息提供给管理员`, { stage, reason })
+}
+function failure(status: number, code: string, message: string, diagnostic?: { stage: ProxyStage; reason: string }) {
   return new Response(
-    JSON.stringify({ success: false, error: { code, message } }),
+    JSON.stringify({ success: false, error: { code, message, ...diagnostic } }),
     {
       status,
       headers: {
@@ -31,6 +42,7 @@ function failure(status: number, code: string, message: string) {
         'X-Content-Type-Options': 'nosniff',
         'X-EClub-API-Transport': 'same-origin',
         'X-EClub-API-Revision': revision,
+        'X-EClub-Proxy-Diagnostics': 'stages-v1',
       },
     },
   )
@@ -73,17 +85,14 @@ export async function proxyApi(
   context: ProxyContext,
   fetcher: typeof fetch = fetch,
 ) {
+  const trace: Trace = { stage: 'prepare' }
   try {
-    return await forwardApi(context, fetcher)
-  } catch {
-    return failure(
-      502,
-      'API_PROXY_UNAVAILABLE',
-      '暂时无法连接后端，请稍后重试或联系管理员',
-    )
+    return await forwardApi(context, fetcher, trace)
+  } catch (error) {
+    return diagnosticFailure(error, trace.stage)
   }
 }
-async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
+async function forwardApi(context: ProxyContext, fetcher: typeof fetch, trace: Trace) {
   const { request } = context,
     url = new URL(request.url)
   if (url.pathname !== '/api' && !url.pathname.startsWith('/api/'))
@@ -107,7 +116,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
         const site = await fetchPublicSite(origin, fetcher)
         if ((url.pathname === '/api/public/popup' && site.hasTimedPopups) ||
             (url.pathname.startsWith('/api/media/') && site.timedMediaIds?.includes(url.pathname.split('/').pop()!)))
-          return forwardApi({ ...context, env: { ...context.env, PUBLIC_SITE_ORIGIN: undefined } }, fetcher)
+          return forwardApi({ ...context, env: { ...context.env, PUBLIC_SITE_ORIGIN: undefined } }, fetcher, trace)
         const result = readPublicSite(site, url.pathname, query)
         const publicHeaders = { 'Content-Type': result.asset?.mime ?? 'application/json; charset=utf-8',
           'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
@@ -143,6 +152,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
   }
   target.pathname = url.pathname
   target.search = url.search
+  trace.stage = 'headers'
   const headers = new Headers()
   for (const name of [
     'accept',
@@ -174,6 +184,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
       'EdgeOne 的 ECLUB_PROXY_SECRET 请填写4位数字，并与云函数中的值保持一致',
     )
   if (secret) {
+    trace.stage = 'signature'
     const ip = context.eo?.clientIp?.trim()
     if (ip && ip.length <= 64 && /^[0-9a-f:.]+$/i.test(ip)) {
       const timestamp = String(Date.now()),
@@ -202,6 +213,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
       )
     }
   }
+  trace.stage = 'body'
   if (Number(request.headers.get('content-length')) > maxBody)
     return failure(413, 'BODY_TOO_LARGE', '请求体过大')
   const bytes = ['GET', 'HEAD'].includes(request.method)
@@ -233,6 +245,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 55_000)
   try {
+    trace.stage = 'fetch'
     const upstream = await fetcher(target.href, {
       method: request.method,
       headers,
@@ -241,6 +254,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
       redirect: 'manual',
       signal: controller.signal,
     })
+    trace.stage = 'response'
     // Do not follow redirects with credentials or send the browser back to a
     // cross-site API. No fallback to a cross-site request is performed.
     if (upstream.status >= 300 && upstream.status < 400)
@@ -263,17 +277,14 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
     responseHeaders.set('Surrogate-Control', 'no-store')
     responseHeaders.set('X-EClub-API-Transport', 'same-origin')
     responseHeaders.set('X-EClub-API-Revision', revision)
+    responseHeaders.set('X-EClub-Proxy-Diagnostics', 'stages-v1')
     return new Response(upstream.body, {
       status: upstream.status,
       statusText: upstream.statusText,
       headers: responseHeaders,
     })
-  } catch {
-    return failure(
-      controller.signal.aborted ? 504 : 502,
-      'API_PROXY_UNAVAILABLE',
-      '暂时无法连接后端，请稍后重试或联系管理员',
-    )
+  } catch (error) {
+    return diagnosticFailure(error, trace.stage, controller.signal.aborted)
   } finally {
     clearTimeout(timeout)
   }

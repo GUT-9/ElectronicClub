@@ -13,6 +13,33 @@ import { MemberService } from '../apps/functions/src/members/service'
 
 const origin = 'https://club.test',
   secret = 'a'.repeat(64)
+test('edge proxy returns safe failure stages without requiring platform logs or exposing exceptions', async () => {
+  for (const kind of ['fetch', 'response', 'signature'] as const) {
+    const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
+    try {
+      if (kind === 'signature') Object.defineProperty(globalThis, 'crypto', { configurable: true, value: {
+        subtle: { importKey() { throw Error('SECRET_KEY_COOKIE_PASSWORD') } },
+      } })
+      const response = await proxyApi({
+        request: new Request(origin + '/api/health'),
+        env: { ECLUB_PROXY_SECRET: '1234' }, eo: { clientIp: '203.0.113.1' },
+      }, async () => {
+        if (kind === 'fetch') throw new TypeError('SECRET_KEY_COOKIE_PASSWORD')
+        return { status: 200, get headers() { throw Error('SECRET_KEY_COOKIE_PASSWORD') } } as unknown as Response
+      })
+      assert.equal(response.status, 502)
+      assert.equal(response.headers.get('x-eclub-proxy-diagnostics'), 'stages-v1')
+      const text = await response.text()
+      assert.ok(!text.includes('SECRET_KEY_COOKIE_PASSWORD'))
+      const data = JSON.parse(text)
+      assert.equal(data.error.code, 'API_PROXY_UNAVAILABLE')
+      assert.equal(data.error.stage, kind)
+      assert.equal(data.error.reason, kind === 'fetch' ? 'type_error' : 'runtime_error')
+    } finally {
+      if (originalCrypto) Object.defineProperty(globalThis, 'crypto', originalCrypto)
+    }
+  }
+})
 test('same-origin proxy fixes the destination, keeps query/method/body/CSRF, and excludes unrelated cookies and spoofed headers', async () => {
   let calls = 0
   const response = await proxyApi(
