@@ -1,4 +1,5 @@
 import {validateResourceQuery} from '../resources/query'
+import { noteDatabaseUse } from '../database-meter'
 import {validateRosterQuery} from '../stage3/roster-query'
 import {purgeDatabaseError} from './purge'
 import {validateLoginQuery} from './login-query'
@@ -24,6 +25,7 @@ export function cloudbaseRpc(): Rpc {
   const auth = cloudbaseAuthorization(env)
   const base = `https://${env}.api.tcloudbasegateway.com/v1/rdb/rest/rpc/`
   return async (name, args) => {
+    noteDatabaseUse(name)
     const authorization = await auth.header()
     let response: Response
     try {
@@ -90,6 +92,10 @@ export class HttpStore implements Store {
     filter: Record<string, unknown>,
     options: ListOptions,
   ) {
+    if (collection === 'public_site_export') {
+      if (Object.keys(filter).length || options.offset !== 0 || options.limit !== 1) throw Error('INVALID_PUBLIC_EXPORT_QUERY')
+      return { items: [await this.rpc('ec_public_site_export', {})] as T[], total: 1 }
+    }
     if(collection==='event_roster'){validateRosterQuery(filter,options);return await this.rpc('ec_event_roster',{p_filter:filter,p_offset:options.offset,p_limit:options.limit}) as {items:T[];total:number}}
     if(collection==='member_stats'){if(Object.keys(filter).length||options.offset!==0||options.limit!==1)throw new Error('INVALID_STATS_QUERY');return{items:[await this.rpc('ec_member_stats',{})] as T[],total:1}}
     if(collection==='club_resources'){validateResourceQuery(filter,options);return await this.rpc('ec_resources_list',{p_filter:filter,p_offset:options.offset,p_limit:options.limit}) as {items:T[];total:number}}

@@ -5,6 +5,7 @@ import { mediaUrl } from '../media'
 const props = defineProps<{
   content: string
   imagePreviews?: Record<string, string>
+  live?: boolean
 }>()
 type Block =
   | { kind: 'table'; headers: string[]; rows: string[][] }
@@ -62,7 +63,7 @@ const blocks = computed(() => {
     <template v-for="(block, i) in blocks" :key="i"
       ><figure v-if="block.kind === 'image'" class="body-image">
         <img
-          :src="imagePreviews?.[block.id] ?? mediaUrl(block.id)"
+          :src="imagePreviews?.[block.id] ?? mediaUrl(block.id, live)"
           :alt="block.alt"
           loading="lazy"
           decoding="async"

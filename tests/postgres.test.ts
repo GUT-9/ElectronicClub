@@ -672,6 +672,7 @@ test(
           ec_member_stats:['SELECT public.ec_member_stats() AS value',[]],
           ec_resources_list:['SELECT public.ec_resources_list($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_event_roster:['SELECT public.ec_event_roster($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
+          ec_public_site_export:['SELECT public.ec_public_site_export() AS value',[]],
           ec_login_history:['SELECT public.ec_login_history($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
           ec_media_expired: ['SELECT public.ec_media_expired($1,$2) AS value',[args.p_before,args.p_limit]],
           ec_access_members: ['SELECT public.ec_access_members($1,$2,$3) AS value',[args.p_filter,args.p_offset,args.p_limit]],
@@ -682,6 +683,7 @@ test(
           ],
         }
         if(name==='ec_commit' && JSON.stringify(args.p_writes).includes('media_chunks')) assert.ok(Buffer.byteLength(JSON.stringify(args))<65536,'media SQL RPC must remain below 64KiB')
+        if(name==='ec_commit' && JSON.stringify(args.p_writes).includes('public-site:')) assert.ok(Buffer.byteLength(JSON.stringify(args))<65536,'publication progress RPC must remain below 64KiB')
         const call = calls[name]!
         try {
           return (await asRole('service_role', call[0], call[1])).rows[0].value
@@ -873,6 +875,18 @@ test(
       const operationsFixture=await eventOperationsSuite(new MemberService(store,()=>operationsNow),store,login.token!,ms=>operationsNow+=ms,()=>operationsNow)
       const rosterFilter={eventId:operationsFixture.eventId,status:'',checkedIn:'',search:'',college:'',className:''}
       assert.deepEqual(await store.list('event_roster',rosterFilter,{offset:0,limit:2}),await new PgStore(owner).list('event_roster',rosterFilter,{offset:0,limit:2}))
+
+      const publicBefore = await snapshot()
+      const publicSql = await readFile('cloudbase/sql/016-public-site-export.sql', 'utf8')
+      await owner.query(publicSql)
+      await owner.query(publicSql)
+      assert.deepEqual(await snapshot(), publicBefore, 'Public export migration must preserve existing business records and credentials')
+      for (const role of ['anon', 'authenticated'] as const)
+        await assert.rejects(() => asRole(role, 'SELECT public.ec_public_site_export()'), (error: unknown) => (error as { code: string }).code === '42501')
+      const { publicSiteSuite } = await import('./helpers/public-site-suite')
+      await publicSiteSuite(store, login.token!)
+      assert.deepEqual(await store.list('public_site_export', {}, { offset: 0, limit: 1 }),
+        await new PgStore(owner).list('public_site_export', {}, { offset: 0, limit: 1 }))
 
       console.log(
         'Managed-role SQL executed by a real NOCREATEROLE schema owner; service-role bootstrap/login and browser isolation passed',

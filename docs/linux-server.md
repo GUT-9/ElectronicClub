@@ -2,6 +2,10 @@
 
 当前只准备服务器版和工具，不执行生产迁移。现有云部署继续使用，七牛文件和原地址保留。未来迁移由用户另行提出后再操作。
 
+公开副本可选配置：在服务器 `.env` 设置 `PUBLIC_SITE_ORIGIN`（现有七牛桶的HTTPS源），通过 `/admin/public-site` 首次同步后再设置 `PUBLIC_SITE_MODE=qiniu`。`PG_POINTS_PER_CORE_SECOND` 仅在确认单价后填写；自建数据库不使用CloudBase点数时可留空。对应016增量迁移已加入部署清单。原生登录、RBAC和动态事务保持；[行为和预算条件](https://github.com/GUT-9/ElectronicClub/blob/main/docs/public-site-budget-deploy.md)。
+
+使用公开副本时，恢复数据库备份后须在恢复对外访问前重新同步公开内容，防止七牛副本与恢复后的数据不一致。副本不能替代数据库备份；迁移/恢复期间可先使用database模式，完成核对和同步后再启用qiniu模式。
+
 ## 两种部署的发布规则
 
 共用业务代码。重大功能、数据库、权限/认证或部署架构更新时提升 `release/major.json` 的generation，运行 `npm run release:refresh`；CI也会在检查通过后处理。小修不提升generation，不更新Linux/工具归档。内容摘要没有变化的部分保留原文件和SHA256。仓库AGENTS.md记录这一约定。

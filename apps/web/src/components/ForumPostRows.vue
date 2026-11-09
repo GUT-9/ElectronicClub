@@ -3,7 +3,7 @@ import type { ForumPostView } from '@electronic-club/shared'
 import { forumStatus } from '../forum'
 import { excerpt } from '../presentation'
 import { beijing } from '../stage3'
-defineProps<{ items: ForumPostView[] }>()
+defineProps<{ items: ForumPostView[]; memberPreview?: boolean }>()
 </script>
 <template>
   <div class="forum-post-rows">
@@ -23,7 +23,7 @@ defineProps<{ items: ForumPostView[] }>()
           ><span>{{ post.board.name }}</span>
         </div>
         <h2>
-          <RouterLink :to="'/community/' + post.id">{{
+          <RouterLink :to="'/community/' + post.id + (memberPreview ? '?preview=member' : '')">{{
             post.title
           }}</RouterLink>
         </h2>

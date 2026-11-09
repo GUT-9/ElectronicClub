@@ -36,6 +36,9 @@ services:
       QINIU_DOWNLOAD_DOMAIN: ${QINIU_DOWNLOAD_DOMAIN:-https://oss.gut9.cn}
       QINIU_RESOURCE_MAX_BYTES: ${QINIU_RESOURCE_MAX_BYTES:-52428800}
       QINIU_RESOURCE_BUDGET_BYTES: ${QINIU_RESOURCE_BUDGET_BYTES:-134217728}
+      PUBLIC_SITE_MODE: ${PUBLIC_SITE_MODE:-database}
+      PUBLIC_SITE_ORIGIN: ${PUBLIC_SITE_ORIGIN:-}
+      PG_POINTS_PER_CORE_SECOND: ${PG_POINTS_PER_CORE_SECOND:-}
     secrets: [app_password, proxy_token]
     volumes:
       - pg_socket:/var/run/postgresql:ro

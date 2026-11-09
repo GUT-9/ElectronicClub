@@ -11,6 +11,9 @@ import { ZodError } from 'zod'
 import { ApiError } from './members/model'
 import type { MemberService } from './members/service'
 import { getService } from './runtime'
+import { isPublicSitePath } from '@electronic-club/shared/public-site'
+import { QiniuPublicSiteStorage } from './public-site-storage'
+import { publicSiteResponse } from './public-site-reader'
 import type { ImportJob, Member, Page } from '@electronic-club/shared'
 import { exportWorkbook, templateWorkbook } from './members/xlsx'
 export interface HttpEvent {
@@ -42,7 +45,7 @@ export function createHandler(resolveService: () => MemberService) {
       Vary: 'Origin',
       'X-Content-Type-Options': 'nosniff',
       'X-EClub-Backend-Revision': BACKEND_BODY_REVISION,
-      'X-EClub-Data-Revision': 'db-efficiency-v1',
+      'X-EClub-Data-Revision': 'public-site-budget-v1',
     }
     const requestHeaders = Object.fromEntries(
       Object.entries(event.headers ?? {}).map(([k, v]) => [k.toLowerCase(), v]),
@@ -84,7 +87,7 @@ export function createHandler(resolveService: () => MemberService) {
     }
     // Unknown public routes preserve 404 without forcing database initialization.
     if (
-      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|events|articles|popups|forum|media|login-history|resources)(?:\/|$)/.test(
+      !/^\/api\/(auth|profile|members|roles|permissions|imports|audit|public|public-site|events|articles|popups|forum|media|login-history|resources)(?:\/|$)/.test(
         path,
       )
     )
@@ -118,6 +121,25 @@ export function createHandler(resolveService: () => MemberService) {
           .map((x) => x.trim())
           .find((x) => x.startsWith(`${cookieName}=`))
           ?.slice(cookieName.length + 1) ?? ''
+      const query = event.queryStringParameters ?? {}
+      if (method === 'GET' && path === '/api/public-site/config')
+        return respond(200, { success: true, data: { mode: process.env.PUBLIC_SITE_MODE === 'qiniu' ? 'qiniu' : 'database', target: 1500 } })
+      if (method === 'GET' && process.env.PUBLIC_SITE_MODE === 'qiniu') {
+        if (isPublicSitePath(path, {}) && !isPublicSitePath(path, query) && query.live !== 'true' && query.admin !== 'true')
+          throw new ApiError(400, 'INVALID_INPUT', '公开查询参数无效')
+        if (isPublicSitePath(path, query)) {
+          headers['X-EClub-Public-Delivery'] = 'qiniu-v1'
+          const result = await publicSiteResponse(new QiniuPublicSiteStorage(), path, query)
+          if (result.binary) {
+            headers['Content-Type'] = result.contentType!
+            headers['Content-Disposition'] = 'inline'
+            return { statusCode: 200, headers, body: result.binary.toString('base64'), isBase64Encoded: true }
+          }
+          return respond(200, { success: true, data: result.data })
+        }
+        if (path.startsWith('/api/public/') && !isPublicSitePath(path, {})) throw new ApiError(404, 'NOT_FOUND', '接口不存在')
+        if (!token) throw new ApiError(401, 'UNAUTHENTICATED', '请先登录')
+      }
       if (
         !token &&
         !(path === '/api/auth/login' && method === 'POST') &&
@@ -246,6 +268,7 @@ export function createHandler(resolveService: () => MemberService) {
               input,
               event.queryStringParameters ?? {},
             )
+      if (result.publicSync) headers['X-EClub-Public-Sync'] = result.publicSync
       if (result.binary && result.contentType?.startsWith('image/')) {
         headers['Content-Type'] = result.contentType
         headers['Content-Disposition'] = 'inline'
@@ -276,7 +299,10 @@ export function createHandler(resolveService: () => MemberService) {
       }
       return result.error
         ? respond(result.status ?? 400, { success: false, error: result.error })
-        : respond(200, { success: true, data: result.data })
+        : respond(200, { success: true, data: result.data,
+            ...(result.publicSync && result.publicSync !== 'ready' ? {
+              warning: '内容已保存，公开页面尚未同步完成。管理员可在“公开发布与预算”检查并重新同步。',
+            } : {}) })
     } catch (error) {
       if (error instanceof HttpBodyError) {
         headers['X-EClub-Body-Error'] = error.diagnostic.stage

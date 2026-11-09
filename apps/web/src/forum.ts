@@ -1,7 +1,7 @@
 import { FORUM_PERMISSIONS } from '@electronic-club/shared'
 export { FORUM_PERMISSIONS }
-export const forumImageUrl = (id: string) =>
-  `/api/forum/images/${encodeURIComponent(id)}`
+export const forumImageUrl = (id: string, live = false) =>
+  `/api/forum/images/${encodeURIComponent(id)}${live ? '?live=true' : ''}`
 export const forumStatus: Record<string, string> = {
   pending: '待审核',
   published: '已发布',

@@ -108,6 +108,7 @@ watch(tab, () => void load(true), { immediate: true })
       ><ForumPostRows
         v-if="tab === 'posts' || tab === 'favorites'"
         :items="posts"
+        member-preview
       />
       <article
         v-for="item in tab === 'comments' ? comments : []"

@@ -5,12 +5,19 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./proxy-secret": "./src/proxy-secret.ts"
+    "./proxy-secret": "./src/proxy-secret.ts",
+    "./public-site": "./src/public-site.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "tsc"
   },
   "devDependencies": {},
-  "types": "./src/index.ts"
+  "types": "./src/index.ts",
+  "typesVersions": {
+    "*": {
+      "public-site": ["src/public-site.ts"],
+      "proxy-secret": ["src/proxy-secret.ts"]
+    }
+  }
 }

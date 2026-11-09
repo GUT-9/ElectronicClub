@@ -104,6 +104,11 @@ export const router = createRouter({
       meta: { auth: true },
       children: [
         {
+          path: 'public-site',
+          component: () => import('./views/PublicSiteAdminView.vue'),
+          meta: { title: '公开发布与预算', superOnly: true },
+        },
+        {
           path: 'forum',
           component: () => import('./views/ForumAdminView.vue'),
           meta: { title: '电子社区管理', forumAdmin: true },
@@ -202,6 +207,7 @@ router.beforeEach(async (to) => {
     if (to.path === '/login' && auth.member) return '/account'
     if (to.meta.permission && !auth.can(String(to.meta.permission)))
       return '/account'
+    if (to.meta.superOnly && !auth.identity?.super) return '/account'
     if (to.meta.forumAdmin && !FORUM_PERMISSIONS.some(auth.can))
       return '/account'
     if (

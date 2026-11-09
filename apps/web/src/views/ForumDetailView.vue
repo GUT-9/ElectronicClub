@@ -10,11 +10,15 @@ import { request } from '../member-api'
 import { beijing } from '../stage3'
 import { forumImageUrl, forumStatus } from '../forum'
 import { useAuthStore } from '../stores/auth'
+import { useDeliveryStore } from '../stores/delivery'
 import ContentState from '../components/ContentState.vue'
 import SafeMarkdown from '../components/SafeMarkdown.vue'
 const route = useRoute(),
   router = useRouter(),
   auth = useAuthStore(),
+  delivery = useDeliveryStore(),
+  interactionLoaded = ref(false),
+  interactionBusy = ref(false),
   post = ref<ForumPostView | null>(null),
   comments = ref<ForumCommentView[]>([]),
   page = ref(1),
@@ -41,11 +45,12 @@ const own = computed(
       post.value.board.status === 'active',
   )
 async function loadComments(anchor = '') {
+  const current = generation
   const currentPost = String(route.params.id)
   const data = await request<Page<ForumCommentView>>(
-    `/forum/posts/${route.params.id}/comments?page=${page.value}${anchor ? '&anchor=' + encodeURIComponent(anchor) : ''}`,
+    `/forum/posts/${route.params.id}/comments?page=${page.value}${anchor ? '&anchor=' + encodeURIComponent(anchor) : ''}${route.query.preview === 'member' ? '&live=true' : ''}`,
   )
-  if (currentPost !== String(route.params.id)) return
+  if (currentPost !== String(route.params.id) || current !== generation) return
   comments.value = data.items
   total.value = data.total
   page.value = data.page
@@ -58,7 +63,7 @@ async function load() {
   post.value = null
   try {
     const loaded = await request<ForumPostView>(
-      '/forum/posts/' + route.params.id,
+      '/forum/posts/' + route.params.id + (route.query.preview === 'member' ? '?live=true' : ''),
     )
     if (current !== generation) return
     post.value = loaded
@@ -71,6 +76,18 @@ async function load() {
         .getElementById('comment-' + String(route.query.comment))
         ?.scrollIntoView({ block: 'center' })
     }
+    await delivery.restore()
+    if (delivery.mode === 'database' || route.query.preview === 'member') await loadInteraction()
+  } catch (e) {
+    if (current === generation) error.value = (e as Error).message
+  } finally {
+    if (current === generation) loading.value = false
+  }
+}
+async function loadInteraction() {
+    if (interactionBusy.value) return
+    interactionBusy.value = true
+    const current = generation
     try {
       await auth.restore(true)
       if (auth.member) {
@@ -80,7 +97,7 @@ async function load() {
         if (current !== generation) return
         liked.value = state.liked
         favorited.value = state.favorited
-        if (loaded.status === 'published') {
+        if (post.value?.status === 'published') {
           const view = await request<{ viewCount: number }>(
             `/forum/posts/${route.params.id}/view`,
             'POST',
@@ -90,14 +107,10 @@ async function load() {
             post.value.viewCount = view.viewCount
         }
       }
+      if (current === generation) interactionLoaded.value = true
     } catch {
       /* Public discussion remains readable when a session expired. */
-    }
-  } catch (e) {
-    if (current === generation) error.value = (e as Error).message
-  } finally {
-    if (current === generation) loading.value = false
-  }
+    } finally { interactionBusy.value = false }
 }
 async function reaction(kind: 'like' | 'favorite') {
   await action(async () => {
@@ -135,7 +148,7 @@ async function comment() {
     reply.value = null
     message.value = '评论已发布'
     const refreshed = await request<ForumPostView>(
-      '/forum/posts/' + route.params.id,
+      '/forum/posts/' + route.params.id + '?live=true',
     )
     if (post.value) post.value.commentCount = refreshed.commentCount
     await loadComments()
@@ -185,9 +198,10 @@ async function turn(delta: number) {
   }
 }
 watch(
-  () => route.params.id,
+  () => [route.params.id, route.query.preview, route.query.comment],
   () => {
     comments.value = []
+    interactionLoaded.value = false
     liked.value = false
     favorited.value = false
     void load()
@@ -230,12 +244,12 @@ watch(
           处理说明：{{ post.moderationReason }}
         </p>
       </header>
-      <SafeMarkdown :content="post.body" />
+      <SafeMarkdown :content="post.body" :live="route.query.preview === 'member'" />
       <div class="forum-thread-images">
         <img
           v-for="(image, index) in post.imageIds"
           :key="image"
-          :src="forumImageUrl(image)"
+          :src="forumImageUrl(image, route.query.preview === 'member')"
           :alt="'帖子附图 ' + (index + 1)"
           loading="lazy"
         />
@@ -244,7 +258,8 @@ watch(
         <span
           >{{ post.viewCount }} 次成员浏览 ·
           {{ post.commentCount }} 条评论</span
-        ><template v-if="auth.member"
+        ><button v-if="delivery.mode !== 'database' && !interactionLoaded" :disabled="interactionBusy" @click="loadInteraction">{{ interactionBusy ? '正在读取…' : '加载我的点赞、收藏与互动状态' }}</button>
+        <template v-else-if="auth.member"
           ><button
             :disabled="busy || loading || post.status !== 'published'"
             @click="reaction('like')"

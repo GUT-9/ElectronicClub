@@ -5,12 +5,12 @@ import {
 } from '@electronic-club/shared'
 import { coverFile, inlineImageBytes } from './cover'
 import { request } from './member-api'
-export const mediaUrl = (id: string) =>
-  `/api/media/${encodeURIComponent(id)}`
-export function imageSource(value: string) {
+export const mediaUrl = (id: string, live = false) =>
+  `/api/media/${encodeURIComponent(id)}${live ? '?live=true' : ''}`
+export function imageSource(value: string, live = false) {
   const id = mediaReference(value)
   return id
-    ? mediaUrl(id)
+    ? mediaUrl(id, live)
     : /^(https:\/\/|data:image\/(png|jpeg|webp);base64,)/.test(value)
       ? value
       : ''

@@ -10,6 +10,7 @@ import type {
 } from '@electronic-club/shared'
 import { request } from '../member-api'
 import { useAuthStore } from '../stores/auth'
+import { useDeliveryStore } from '../stores/delivery'
 import { beijing } from '../stage3'
 import ContentState from '../components/ContentState.vue'
 import { eventLabel } from '../presentation'
@@ -17,6 +18,8 @@ import SafeMarkdown from '../components/SafeMarkdown.vue'
 const props = defineProps<{ kind: 'events' | 'articles' }>(),
   route = useRoute(),
   auth = useAuthStore(),
+  delivery = useDeliveryStore(),
+  membershipRequested = ref(false),
   item = ref<ClubEvent | ClubArticle | null>(null),
   registration = ref<Registration | null>(null),
   eventAccess = ref<EventAccess | null>(null),
@@ -57,6 +60,14 @@ async function load() {
   } finally {
     if (current === generation) loading.value = false
   }
+  await delivery.restore()
+  if (current !== generation) return
+  if (props.kind === 'events' && (delivery.mode === 'database' || membershipRequested.value || route.query.checkin))
+    await loadMembership()
+}
+async function loadMembership() {
+  const current = generation
+  membershipRequested.value = true
   membershipLoading.value = true
   try {
     await auth.restore(true)
@@ -96,6 +107,7 @@ watch(
   () => [props.kind, route.params.id, route.query.checkin],
   () => {
     item.value = null
+    membershipRequested.value = false
     registration.value = null
     eventAccess.value = null
     code.value =
@@ -181,7 +193,10 @@ watch(
           报名截止：{{ beijing(item.registrationDeadline) }} · 已占名额
           {{ item.occupied }} / {{ item.capacity ?? '不限' }}
         </p>
-        <p v-if="membershipLoading" class="ui-message" role="status">
+        <button v-if="delivery.mode !== 'database' && !membershipRequested" class="button button-primary" @click="loadMembership">
+          查看我的报名、签到与管理入口
+        </button>
+        <p v-else-if="membershipLoading" class="ui-message" role="status">
           正在读取报名状态…
         </p>
         <div v-else-if="membershipError" class="ui-message" role="alert">

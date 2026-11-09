@@ -33,6 +33,10 @@ export async function request<T>(
   const body: ApiResponse<T> = await response.json()
   if (!body.success)
     throw new RequestError(body.error.message, body.error.code, response.status)
+  if (body.warning && typeof window !== 'undefined')
+    window.dispatchEvent(new CustomEvent('eclub-public-warning', { detail: body.warning }))
+  else if (response.headers.get('X-EClub-Public-Sync') === 'ready' && typeof window !== 'undefined')
+    window.dispatchEvent(new CustomEvent('eclub-public-warning', { detail: '' }))
   return body.data
 }
 export async function download(path: string, filename: string) {

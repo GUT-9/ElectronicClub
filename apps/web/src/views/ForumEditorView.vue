@@ -91,7 +91,7 @@ onMounted(async () => {
     }
     if (route.params.id) {
       const post = await request<ForumPostView>(
-        '/forum/posts/' + route.params.id,
+        '/forum/posts/' + route.params.id + '?live=true',
       )
       if (post.authorUid !== auth.member?.uid)
         throw new Error('只能编辑本人帖子')
@@ -104,7 +104,7 @@ onMounted(async () => {
         boards.value.push(post.board)
       images.value = post.imageIds.map((id) => ({
         id,
-        src: forumImageUrl(id),
+        src: forumImageUrl(id, true),
         staged: false,
       }))
     } else

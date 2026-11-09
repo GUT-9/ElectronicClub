@@ -28,6 +28,7 @@ const navGroups = computed(() =>
         '/admin/permissions',
         '/admin/audit',
         '/admin/login-history',
+        '/admin/public-site',
       ],
     },
   ]
@@ -39,6 +40,7 @@ const navGroups = computed(() =>
 )
 const links = computed(() =>
   [
+    { to: '/admin/public-site', label: '公开发布与预算', permission: '' },
     {
       to: '/admin/resources',
       label: '社团资料管理',
@@ -73,7 +75,7 @@ const links = computed(() =>
     },
     { to: '/admin/audit', label: '操作审计', permission: 'audit.read' },
   ].filter((item) =>
-    item.to === '/admin/forum'
+    item.to === '/admin/public-site' ? !!auth.identity?.super : item.to === '/admin/forum'
       ? FORUM_PERMISSIONS.some(auth.can)
       : item.to === '/admin/articles'
         ? [

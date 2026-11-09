@@ -128,7 +128,7 @@ async function insert(e: Event) {
     >
       <div v-for="(id, index) in attachments" :key="id">
         <img
-          :src="previews[id] ?? mediaUrl(id)"
+          :src="previews[id] ?? mediaUrl(id, true)"
           :alt="`正文图片 ${index + 1}`"
         /><span>图片 {{ index + 1 }}</span
         ><button
@@ -142,6 +142,7 @@ async function insert(e: Event) {
       </div>
     </div>
     <SafeMarkdown
+      live
       v-if="preview"
       :content="modelValue"
       :image-previews="previews"

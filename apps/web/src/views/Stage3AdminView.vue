@@ -624,7 +624,7 @@ function turn(n: number) {
           @change="picture" /></label
       ><img
         v-if="kind === 'popups' ? form.image : form.cover"
-        :src="imageSource(kind === 'popups' ? form.image : form.cover)"
+        :src="imageSource(kind === 'popups' ? form.image : form.cover, true)"
         class="editor-cover"
         alt="封面预览"
       />

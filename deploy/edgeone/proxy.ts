@@ -1,5 +1,6 @@
 // The upstream is fixed server-side. Request parameters never select a host.
 import { normalizeProxySecret } from '@electronic-club/shared/proxy-secret'
+import { fetchPublicSite, fetchPublicAsset, isPublicSitePath, readPublicSite, PublicSiteError } from '@electronic-club/shared/public-site'
 export const DEFAULT_API_UPSTREAM =
   'https://natural-tuna-d6gptlw1w76fa8a63-1448063817.ap-shanghai.app.tcloudbase.com'
 export interface ProxyContext {
@@ -89,6 +90,38 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
     return failure(404, 'NOT_FOUND', '接口不存在')
   if (!methods.has(request.method))
     return failure(405, 'METHOD_NOT_ALLOWED', '不支持的请求方法')
+  if (request.method === 'GET' && context.env?.PUBLIC_SITE_ORIGIN) {
+    const query = Object.fromEntries(url.searchParams)
+    if (url.pathname === '/api/public-site/config')
+      return new Response(JSON.stringify({ success: true, data: { mode: 'qiniu', target: 1500 } }), {
+        headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
+      })
+    if (isPublicSitePath(url.pathname, {}) && !isPublicSitePath(url.pathname, query)) {
+      if (query.live !== 'true' && query.admin !== 'true') return failure(400, 'INVALID_INPUT', '公开查询参数无效')
+      if (!/__Host-ec-session=[A-Za-z0-9_-]+(?:;|$)/.test(request.headers.get('cookie') ?? ''))
+        return failure(401, 'UNAUTHENTICATED', '请先登录')
+    }
+    if (isPublicSitePath(url.pathname, query)) {
+      try {
+        const origin = context.env.PUBLIC_SITE_ORIGIN
+        const site = await fetchPublicSite(origin, fetcher)
+        if ((url.pathname === '/api/public/popup' && site.hasTimedPopups) ||
+            (url.pathname.startsWith('/api/media/') && site.timedMediaIds?.includes(url.pathname.split('/').pop()!)))
+          return forwardApi({ ...context, env: { ...context.env, PUBLIC_SITE_ORIGIN: undefined } }, fetcher)
+        const result = readPublicSite(site, url.pathname, query)
+        const publicHeaders = { 'Content-Type': result.asset?.mime ?? 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store', 'CDN-Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',
+          'X-EClub-Public-Delivery': 'qiniu-v1', 'X-EClub-API-Revision': revision }
+        const body = result.asset ? (await fetchPublicAsset(origin, result.asset, fetcher)).buffer as ArrayBuffer :
+          JSON.stringify({ success: true, data: result.data })
+        return new Response(body, { headers: publicHeaders })
+      } catch (error) {
+        // Never wake the database on a cache miss, malformed input or storage outage.
+        if (error instanceof PublicSiteError) return failure(error.status, error.code, error.message)
+        return failure(503, 'PUBLIC_SITE_UNAVAILABLE', '公开内容暂时无法读取，请稍后重试')
+      }
+    }
+  }
   let target: URL
   try {
     const value = context.env?.API_UPSTREAM_ORIGIN ?? DEFAULT_API_UPSTREAM

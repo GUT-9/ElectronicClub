@@ -1,5 +1,10 @@
 import { ResourceService } from '../resources/service'
 import { PublicReadCache, publicReadKey } from '../public-read-cache'
+import { PublicSitePublisher, changesPublicContent } from '../public-site-publisher'
+import { isPublicSitePath } from '@electronic-club/shared/public-site'
+import type { PublicSiteStorage } from '../public-site-storage'
+import { QiniuPublicSiteStorage } from '../public-site-storage'
+import { publicSiteResponse } from '../public-site-reader'
 import type { ResourceProvider } from '../resources/qiniu'
 import { safeLoginContext } from './login-context'
 import type { LoginContext, LoginMetadata } from './login-context'
@@ -57,6 +62,7 @@ interface Context extends Identity {
   sessionId: string
 }
 interface Result {
+  publicSync?: 'ready' | 'pending' | 'failed'
   contentType?: string
   binary?: Buffer
   filename?: string
@@ -72,12 +78,16 @@ const failure = (status: number, code: string, message: string): Result => ({
 })
 export class MemberService {
   private publicCache: PublicReadCache<Result>
+  private publisher: PublicSitePublisher
   constructor(
     public store: Store,
     private clock = () => Date.now(),
     private resourceProvider?: ResourceProvider,
+    private publicStorage: PublicSiteStorage = new QiniuPublicSiteStorage(),
   ) {
     this.publicCache = new PublicReadCache(clock)
+    this.publisher = new PublicSitePublisher(store,
+      (path) => this.executeUncached('', 'GET', path, {}, {}), publicStorage, resourceProvider, clock)
   }
   private now() {
     return new Date(this.clock()).toISOString()
@@ -560,6 +570,18 @@ export class MemberService {
     input: unknown,
     query: Record<string, string>,
   ): Promise<Result> {
+    if (process.env.PUBLIC_SITE_MODE === 'qiniu' && method === 'GET') {
+      if (isPublicSitePath(path, query)) return publicSiteResponse(this.publicStorage, path, query, this.clock())
+      if (isPublicSitePath(path, {}) && query.live !== 'true' && query.admin !== 'true')
+        throw new ApiError(400, 'INVALID_INPUT', '公开查询参数无效')
+      if (path.startsWith('/api/public/') && !isPublicSitePath(path, {}))
+        throw new ApiError(404, 'NOT_FOUND', '接口不存在')
+      ensure(token, 401, 'UNAUTHENTICATED', '请先登录')
+      if (query.live === 'true') {
+        ensure(token, 401, 'UNAUTHENTICATED', '请先登录')
+        await this.secure(token, async () => undefined)
+      }
+    }
     const key = publicReadKey(method, path, query)
     if (key) {
       return this.publicCache.load(
@@ -574,7 +596,11 @@ export class MemberService {
     // operations and in-flight reads must not repopulate obsolete public data.
     this.publicCache.clear()
     try {
-      return await this.executeUncached(token, method, path, input, query)
+      const result = await this.executeUncached(token, method, path, input, query)
+      if (!result.error && (process.env.PUBLIC_SITE_MODE === 'qiniu' || process.env.PUBLIC_SITE_ORIGIN) && changesPublicContent(path)) {
+        try { result.publicSync = await this.publisher.sync() } catch { result.publicSync = 'failed' }
+      }
+      return result
     } finally {
       this.publicCache.clear()
     }
@@ -586,6 +612,18 @@ export class MemberService {
     input: unknown,
     query: Record<string, string>,
   ): Promise<Result> {
+    if (path === '/api/public-site/status' && method === 'GET') {
+      await this.secure(token, async (_tx, ctx) => ensure(ctx.super, 403, 'FORBIDDEN', '仅超级管理员可管理公开发布'))
+      return { data: await this.publisher.status() }
+    }
+    if (path === '/api/public-site/rebuild' && method === 'POST') {
+      await this.secure(token, async (tx, ctx) => {
+        ensure(ctx.super, 403, 'FORBIDDEN', '仅超级管理员可管理公开发布')
+        await this.audit(tx, ctx.member.uid, 'public-site.rebuild', 'public-site')
+      })
+      const state = await this.publisher.sync()
+      return { data: { state }, publicSync: state }
+    }
     if (/^\/api\/resources(?:\/|$)/.test(path))
       return new ResourceService(
         this.store,

@@ -6,7 +6,7 @@ export interface HealthData {
   timestamp: string
 }
 export type ApiResponse<T> =
-  | { success: true; data: T }
+  | { success: true; data: T; warning?: string }
   | { success: false; error: { code: string; message: string } }
 export type HealthResponse = ApiResponse<HealthData>
 

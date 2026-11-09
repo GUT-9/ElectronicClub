@@ -7,5 +7,6 @@
   "012-login-history.sql",
   "013-member-stats-resources.sql",
   "014-member-purge.sql",
-  "015-event-operations.sql"
+  "015-event-operations.sql",
+  "016-public-site-export.sql"
 ]

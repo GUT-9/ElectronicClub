@@ -3,9 +3,12 @@ import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import BrandLogo from '../components/BrandLogo.vue'
 import { useAuthStore } from '../stores/auth'
+import { useDeliveryStore } from '../stores/delivery'
 const auth = useAuthStore()
-onMounted(() => {
-  void auth.restore().catch(() => undefined)
+const delivery = useDeliveryStore()
+onMounted(async () => {
+  await delivery.restore()
+  if (delivery.mode === 'database') void auth.restore().catch(() => undefined)
 })
 import HealthStatus from '../components/HealthStatus.vue'
 const route = useRoute()
@@ -70,7 +73,7 @@ watch(
           "
           >{{ link.label }}</RouterLink
         ><RouterLink :to="auth.member ? '/account' : '/login'" class="nav-login"
-          >{{ auth.member ? '用户中心' : '登录' }}
+          >{{ auth.member ? '用户中心' : delivery.mode === 'qiniu' ? '成员入口' : '登录' }}
           <span aria-hidden="true">↗</span></RouterLink
         >
       </nav>
