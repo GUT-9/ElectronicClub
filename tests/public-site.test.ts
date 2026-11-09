@@ -5,8 +5,8 @@ import { MemoryStore } from '../apps/functions/src/members/memory-store'
 import { MemberService } from '../apps/functions/src/members/service'
 import type { Store, Transaction, ListOptions } from '../apps/functions/src/members/store'
 import { createHandler } from '../apps/functions/src/index'
-import { publicSiteSuite } from './helpers/public-site-suite'
-import { budgetEstimate, readPublicSite, PUBLIC_SITE_KEY, fetchPublicSite, fetchPublicAsset } from '@electronic-club/shared/public-site'
+import { publicSiteSuite, TestPublicStorage } from './helpers/public-site-suite'
+import { budgetEstimate, readPublicSite, PUBLIC_SITE_KEY, fetchPublicSite, fetchPublicAsset, PublicSiteError, safePublicOrigin } from '@electronic-club/shared/public-site'
 import { proxyApi } from '../deploy/edgeone/proxy'
 import { QiniuPublicSiteStorage } from '../apps/functions/src/public-site-storage'
 import { PublicSitePublisher, changesPublicContent } from '../apps/functions/src/public-site-publisher'
@@ -32,6 +32,48 @@ class MeasuredStore implements Store {
   async read<T>(c: string, id: string) { this.calls++; return this.inner.read<T>(c, id) }
   async list<T>(c: string, f: Record<string, unknown>, o: ListOptions) { this.calls++; return this.inner.list<T>(c, f, o) }
 }
+test('public publication checks anonymous readback instead of treating successful uploads as delivery', async () => {
+  class UnreadableStorage extends TestPublicStorage {
+    broken = true
+    stale = false
+    override async read() {
+      if (this.broken) throw new PublicSiteError(503, 'PUBLIC_SITE_HTTP_403', '公开源返回 HTTP 403，请检查读取地址及访问权限')
+      const value = await super.read()
+      return value && this.stale ? { ...value, revision: 'old-copy' } : value
+    }
+  }
+  const store = new MemoryStore(), storage = new UnreadableStorage()
+  const publisher = new PublicSitePublisher(store, async () => { throw Error('unused') }, storage, new TestResourceProvider())
+  assert.equal(await publisher.sync(), 'failed')
+  assert.ok(storage.objects.has(PUBLIC_SITE_KEY), 'upload succeeded but anonymous read failed')
+  let status = await publisher.status()
+  assert.equal(status.dirty, true)
+  assert.equal(status.readable, false)
+  assert.equal(status.lastError?.code, 'PUBLIC_SITE_HTTP_403')
+  storage.broken = false
+  storage.stale = true
+  assert.equal(await publisher.sync(), 'failed')
+  assert.equal((await publisher.status()).lastError?.code, 'PUBLIC_SITE_STALE')
+  storage.stale = false
+  assert.equal(await publisher.sync(), 'ready')
+  status = await publisher.status()
+  assert.equal(status.readable, true)
+  assert.equal(status.dirty, false)
+  assert.equal(status.lastError, null)
+})
+test('public source diagnostics distinguish HTTP, connection and malformed files without exposing response contents', async () => {
+  assert.equal(safePublicOrigin(' https://public.example.test/ '), 'https://public.example.test')
+  assert.equal(safePublicOrigin('https://private:secret@public.example.test'), null)
+  assert.equal(safePublicOrigin('https://public.example.test/wrong/path'), null)
+  for (const status of [401, 403, 404, 503]) {
+    await assert.rejects(fetchPublicSite('https://public.example.test', async () => new Response('SECRET_RESPONSE', { status })),
+      (error: unknown) => error instanceof PublicSiteError && error.code === `PUBLIC_SITE_HTTP_${status}` && !error.message.includes('SECRET_RESPONSE'))
+  }
+  await assert.rejects(fetchPublicSite('https://public.example.test', async () => { throw Error('SECRET_CONNECTION') }),
+    (error: unknown) => error instanceof PublicSiteError && error.code === 'PUBLIC_SITE_NETWORK' && !error.message.includes('SECRET_CONNECTION'))
+  await assert.rejects(fetchPublicSite('https://public.example.test', async () => new Response('<html>SECRET</html>')),
+    (error: unknown) => error instanceof PublicSiteError && error.code === 'PUBLIC_SITE_JSON' && !error.message.includes('SECRET'))
+})
 test('public object delivery: privacy, no database reads, failure isolation, recovery and concurrent publication', async () => {
   const oldMode = process.env.PUBLIC_SITE_MODE, oldOrigin = process.env.PUBLIC_SITE_ORIGIN, oldFetch = globalThis.fetch
   try {
@@ -68,6 +110,12 @@ test('public object delivery: privacy, no database reads, failure isolation, rec
       return new Response(JSON.stringify(snapshot))
     }
     const handler = createHandler(() => { throw Error('database service factory must not run') })
+    const backendConfig = await handler({ path: '/api/public-site/config', httpMethod: 'GET' })
+    assert.deepEqual(JSON.parse(backendConfig.body).data, { mode: 'qiniu', target: 1500, reader: 'cloudbase', origin: storage.origin() })
+    const edgeConfig = await proxyApi({ request: new Request('https://club.test/api/public-site/config'), env: { PUBLIC_SITE_ORIGIN: storage.origin() } }, globalThis.fetch)
+    assert.equal((await edgeConfig.json() as { data: { reader: string } }).data.reader, 'edgeone')
+    const invalidConfig = await proxyApi({ request: new Request('https://club.test/api/public-site/config'), env: { PUBLIC_SITE_ORIGIN: 'https://private:SECRET@public.example.test' } }, globalThis.fetch)
+    assert.ok(!(await invalidConfig.text()).includes('SECRET'))
     assert.equal((await handler({ path: '/api/public/articles', httpMethod: 'GET' })).statusCode, 200)
     const edge = await proxyApi({ request: new Request('https://club.test/api/forum/posts', { headers: { cookie: '__Host-ec-session=private' } }), env: { PUBLIC_SITE_ORIGIN: storage.origin() } }, globalThis.fetch)
     assert.equal(edge.status, 200)

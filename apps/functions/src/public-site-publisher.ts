@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { ClubArticle, PopupAnnouncement, ForumBoard, ForumPostView, ForumCommentView, ForumAuthor } from '@electronic-club/shared'
-import { PUBLIC_SITE_KEY, PUBLIC_SITE_MAX_BYTES } from '@electronic-club/shared/public-site'
+import { PUBLIC_SITE_KEY, PUBLIC_SITE_MAX_BYTES, PublicSiteError } from '@electronic-club/shared/public-site'
 import type { PublicSite, PublicAsset } from '@electronic-club/shared/public-site'
 import type { Store, Transaction } from './members/store'
 import type { StageResult } from './stage3/service'
@@ -16,7 +16,7 @@ import type { TimedSite } from './public-site-timed'
 import type { MediaImage } from './media/model'
 
 type Export = Record<string, Record<string, unknown>[]>
-type State = { requested: number; published: number; dirty: boolean; owner: string | null; until: number; generatedAt?: string; pendingAssets?: number; cleanupPending?: number }
+type State = { requested: number; published: number; dirty: boolean; owner: string | null; until: number; generatedAt?: string; revision?: string; pendingAssets?: number; cleanupPending?: number; lastError?: { code: string; message: string } | null }
 type AssetRecord = { id: string; path: string; asset: PublicAsset; status: 'pending' | 'ready' | 'deleting' }
 const stateKey = 'public-site:publisher'
 export async function markPublicDirty(tx: Transaction) {
@@ -50,12 +50,29 @@ export class PublicSitePublisher {
   async status() {
     const state = await this.store.read<State>('system', stateKey)
     const price = Number(process.env.PG_POINTS_PER_CORE_SECOND)
+    let readable = false, readCode = '', readMessage = ''
+    if (this.storage.configured()) {
+      try {
+        const copy = await this.storage.read()
+        if (!copy) throw new PublicSiteError(503, 'PUBLIC_SITE_MISSING', '公开源没有找到site.json，请检查空间、地址或重新同步')
+        if ((state?.revision && copy.revision !== state.revision) ||
+            (!state?.revision && state?.generatedAt && copy.generatedAt !== state.generatedAt))
+          throw new PublicSiteError(503, 'PUBLIC_SITE_STALE', '读回文件与最近确认的版本不一致，请检查源地址和CDN缓存并重新同步')
+        readable = true
+        readMessage = '公开源读取正常'
+      } catch (error) {
+        const diagnostic = readDiagnostic(error)
+        readCode = diagnostic.code
+        readMessage = diagnostic.message
+      }
+    } else { readCode = 'PUBLIC_STORAGE_NOT_CONFIGURED'; readMessage = '公开源或七牛配置尚未就绪' }
     return { configured: this.storage.configured(), mode: process.env.PUBLIC_SITE_MODE === 'qiniu' ? 'qiniu' : 'database',
       origin: this.storage.configured() ? this.storage.origin() : '', target: 1500, reserve: 300,
       pointPrice: Number.isFinite(price) && price > 0 ? price : null,
       dirty: state?.dirty ?? true, generatedAt: state?.generatedAt ?? null,
       requested: state?.requested ?? 0, published: state?.published ?? 0,
-      pendingAssets: state?.pendingAssets ?? 0, garbage: state?.cleanupPending ?? 0 }
+      pendingAssets: state?.pendingAssets ?? 0, garbage: state?.cleanupPending ?? 0,
+      readable, readCode, readMessage, lastError: state?.lastError ?? null }
   }
   private async lease(tx: Transaction, owner: string) {
     const state = await tx.get<State>('system', stateKey)
@@ -84,6 +101,10 @@ export class PublicSitePublisher {
         await this.store.run((tx) => this.lease(tx, owner))
         await this.storage.putTimed(timed)
         await this.storage.put(PUBLIC_SITE_KEY, bytes, 'application/json')
+        const readback = await this.storage.read()
+        if (!readback) throw new PublicSiteError(503, 'PUBLIC_SITE_MISSING', '上传后无法从公开源找到site.json，请检查空间与匿名读取地址')
+        if (readback.revision !== snapshot.revision)
+          throw new PublicSiteError(503, 'PUBLIC_SITE_STALE', '上传成功，但公开源读回版本不同，请检查是否指向同一空间或CDN缓存未更新')
         // The manifest changes first. Revoked content disappears even if cleanup
         // or one new image upload needs a retry. Asset progress uses small rows,
         // never a growing array that can exceed the 64KiB RPC body budget.
@@ -106,14 +127,20 @@ export class PublicSitePublisher {
           const current = await this.lease(tx, owner)
           const dirty = current.requested !== state.requested || pending > 0
           await tx.set('system', stateKey, { ...current, published: state.requested, dirty, pendingAssets: pending, cleanupPending,
-            generatedAt: snapshot.generatedAt, owner: dirty ? owner : null, until: dirty ? current.until : 0 })
+            generatedAt: snapshot.generatedAt, revision: snapshot.revision, lastError: null,
+            owner: dirty ? owner : null, until: dirty ? current.until : 0 })
           return !dirty
         })
         if (settled) return 'ready'
       }
       return 'pending'
-    } catch {
-      console.error(JSON.stringify({ category: 'public_sync', code: 'PUBLIC_SYNC_FAILED' }))
+    } catch (error) {
+      const diagnostic = readDiagnostic(error)
+      console.error(JSON.stringify({ category: 'public_sync', code: diagnostic.code }))
+      await this.store.run(async (tx) => {
+        const state = await tx.get<State>('system', stateKey)
+        if (state?.owner === owner) await tx.set('system', stateKey, { ...state, dirty: true, lastError: diagnostic })
+      })
       return 'failed'
     } finally {
       await this.store.run(async (tx) => {
@@ -204,4 +231,9 @@ export class PublicSitePublisher {
     snapshot.timedMediaIds = Object.keys(timed.assets).filter((path) => !snapshot.assets[path]).map((path) => path.split('/').pop()!)
     return { snapshot, records, paths, pending: paths.size - Object.keys(snapshot.assets).length, timed }
   }
+}
+function readDiagnostic(error: unknown) {
+  if (error instanceof PublicSiteError && /^PUBLIC_SITE_(?:HTTP_\d{3}|ORIGIN|NETWORK|SIZE|JSON|FORMAT|MISSING|STALE)$/.test(error.code))
+    return { code: error.code, message: error.message }
+  return { code: 'PUBLIC_SYNC_FAILED', message: '公开源读回或同步失败，请检查七牛读取地址、配置和网络' }
 }

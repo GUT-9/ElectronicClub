@@ -3,7 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { budgetEstimate } from '@electronic-club/shared/public-site'
 import { request } from '../member-api'
 import PageIntro from '../components/PageIntro.vue'
-type State = { configured: boolean; mode: string; origin: string; dirty: boolean; generatedAt: string | null; garbage: number; pendingAssets: number; pointPrice: number | null }
+type State = { configured: boolean; mode: string; origin: string; dirty: boolean; generatedAt: string | null; garbage: number; pendingAssets: number; pointPrice: number | null; readable: boolean; readCode: string; readMessage: string; lastError?: { code: string; message: string } | null }
+const delivery = ref<{ reader: string; origin: string | null } | null>(null)
 const status = ref<State | null>(null), busy = ref(false), message = ref('')
 const price = ref(''), days = ref(20), minutes = ref(20), reserve = ref(300)
 const estimate = computed(() => {
@@ -11,7 +12,9 @@ const estimate = computed(() => {
   catch { return null }
 })
 async function load() {
-  status.value = await request<State>('/public-site/status')
+  const [state, config] = await Promise.all([request<State>('/public-site/status'), request<{ reader: string; origin: string | null }>('/public-site/config')])
+  status.value = state
+  delivery.value = config
   if (status.value.pointPrice && !price.value) price.value = String(status.value.pointPrice)
 }
 async function publish() {
@@ -32,12 +35,17 @@ onMounted(() => load().catch((error) => { message.value = error.message }))
   <section class="ui-panel" v-if="status">
     <h2>公开发布</h2>
     <p>当前模式：{{ status.mode === 'qiniu' ? '七牛公开副本' : '数据库读取' }}</p>
-    <p>存储配置：{{ status.configured ? '已配置' : '未就绪' }} · {{ status.dirty ? '有内容待同步' : '已同步' }}</p>
+    <p>存储配置：{{ status.configured ? '已配置' : '未就绪' }} · {{ status.dirty ? '有内容待同步' : '已上传' }}</p>
+    <p :class="{ 'ui-message': !status.readable }">公开源检查：{{ status.readMessage || '请更新云函数以启用读取检查' }} <code v-if="status.readCode">{{ status.readCode }}</code></p>
+    <p>CloudBase 读取地址：{{ status.origin || '未配置' }}</p>
+    <p v-if="delivery">前台读取：{{ delivery.reader === 'edgeone' ? 'EdgeOne' : 'CloudBase' }} · {{ delivery.origin || '未配置或格式无效' }}</p>
+    <p v-if="delivery?.origin && status.origin && delivery.origin !== status.origin" class="ui-message">前台与 CloudBase 地址不同，请确认指向同一七牛空间和公开文件。</p>
+    <p v-if="status.lastError" class="ui-message">上次同步失败：{{ status.lastError.message }}（{{ status.lastError.code }}）</p>
     <p>最近同步：{{ status.generatedAt ? new Date(status.generatedAt).toLocaleString() : '尚未生成' }}</p>
     <p v-if="status.garbage">待清理图片对象：{{ status.garbage }}，再次同步时重试清理。</p>
     <p v-if="status.pendingAssets">待同步图片：{{ status.pendingAssets }}，再次同步会继续已保存的复制进度。</p>
     <button class="button button-primary" :disabled="busy || !status.configured" @click="publish">{{ busy ? '正在同步…' : '同步公开内容' }}</button>
-    <button class="plain-button" :disabled="busy" @click="load">刷新状态</button>
+    <button class="plain-button" :disabled="busy" @click="load().catch(error => message = error.message)">刷新状态</button>
   </section>
   <p v-if="message" class="ui-message" role="status">{{ message }}</p>
   <section class="ui-panel budget-form">
@@ -64,4 +72,5 @@ onMounted(() => load().catch((error) => { message.value = error.message }))
 .budget-form label { display: grid; gap: 8px; margin: 18px 0; max-width: 560px; }
 .budget-form input { padding: 12px; border: 1px solid var(--line); border-radius: 4px; }
 .ui-panel p { line-height: 1.9; }
+.ui-panel p, .ui-panel code { overflow-wrap: anywhere; }
 </style>

@@ -54,7 +54,15 @@
 
 预定弹窗及仅绑定弹窗的图片以AES-256-GCM加密保存为 `electronicclub/public-site/v1/timed.bin`，复用现有服务端七牛SecretKey派生密钥，无需额外配置新密钥。公开JSON不含预定标题、摘要或图片字节。EdgeOne没有解密密钥，这部分转到CloudBase函数按当前时间、目标发布状态校验后返回；图片未到发布时返回404，仍不访问数据库。密文篡改会被拒绝。轮换七牛SecretKey后应手动重新同步。静态公告切换模拟开始、到期和替换顺序，避免新公告到期后旧公告再次出现。
 
-推荐S3源。如使用CDN域名，须保持有效HTTPS证书，并对site.json禁用缓存或控制到5秒且保留查询参数，避免旧清单。网站/API响应仍no-store；边缘不向七牛发送Cookie、Authorization或代理签名。生产网络、CDN和免费额度未在本地代验。
+公开源必须允许匿名HTTPS读取，不能只根据上传成功判断源地址可用。S3地址需要实际核实匿名读取支持；如使用CDN域名，须保持有效HTTPS证书，并对site.json禁用缓存或控制到5秒且保留查询参数，避免旧清单。网站/API响应仍no-store；边缘不向七牛发送Cookie、Authorization或代理签名。生产网络、CDN和免费额度未在本地代验。
+
+### 已上传但前台无法加载
+
+本次读取诊断修复不需要新增SQL，已执行016的环境不要重新初始化。更新完整云函数ZIP，再部署EdgeOne最新main，打开“公开发布与预算”刷新状态。同步现在会在上传后从公开源读回并核对版本，读不回来或读到旧版本不会确认完成。
+
+页面分别显示CloudBase读取地址、前台实际读取路径及地址、公开源检查结果。`PUBLIC_SITE_HTTP_403`表示源站拒绝匿名读取；`PUBLIC_SITE_MISSING`或HTTP404表示文件/地址未找到；`PUBLIC_SITE_NETWORK`表示网络或HTTPS连接失败；`PUBLIC_SITE_JSON`表示返回错误页等非JSON内容；`PUBLIC_SITE_STALE`表示读回版本不符。两个地址不同不一定错误，但必须指向同一空间、同一文件。检查文件路径`electronicclub/public-site/v1/site.json`，不能把目录或文件路径写入PUBLIC_SITE_ORIGIN。
+
+没有新增密钥或必填环境变量。若确认读取域名需要更换，同时修改CloudBase函数环境变量和EdgeOne服务端环境变量PUBLIC_SITE_ORIGIN，再部署EdgeOne并重新同步。只填写经过匿名读取验证的HTTPS源域名，不要填写网站自身域名或带鉴权参数的链接。诊断响应不输出七牛密钥、响应正文或成员私有信息。管理页检查会读取对象存储和已有状态行，不引入定时轮询。
 
 ## 核对与回滚
 

@@ -11,7 +11,7 @@ import { ZodError } from 'zod'
 import { ApiError } from './members/model'
 import type { MemberService } from './members/service'
 import { getService } from './runtime'
-import { isPublicSitePath } from '@electronic-club/shared/public-site'
+import { isPublicSitePath, safePublicOrigin } from '@electronic-club/shared/public-site'
 import { QiniuPublicSiteStorage } from './public-site-storage'
 import { publicSiteResponse } from './public-site-reader'
 import type { ImportJob, Member, Page } from '@electronic-club/shared'
@@ -123,7 +123,8 @@ export function createHandler(resolveService: () => MemberService) {
           ?.slice(cookieName.length + 1) ?? ''
       const query = event.queryStringParameters ?? {}
       if (method === 'GET' && path === '/api/public-site/config')
-        return respond(200, { success: true, data: { mode: process.env.PUBLIC_SITE_MODE === 'qiniu' ? 'qiniu' : 'database', target: 1500 } })
+        return respond(200, { success: true, data: { mode: process.env.PUBLIC_SITE_MODE === 'qiniu' ? 'qiniu' : 'database', target: 1500,
+          reader: 'cloudbase', origin: safePublicOrigin(process.env.PUBLIC_SITE_ORIGIN || process.env.QINIU_DOWNLOAD_DOMAIN) } })
       if (method === 'GET' && process.env.PUBLIC_SITE_MODE === 'qiniu') {
         if (isPublicSitePath(path, {}) && !isPublicSitePath(path, query) && query.live !== 'true' && query.admin !== 'true')
           throw new ApiError(400, 'INVALID_INPUT', '公开查询参数无效')

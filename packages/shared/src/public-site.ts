@@ -27,11 +27,16 @@ const fail = (status: number, code: string, message: string): never => {
   throw new PublicSiteError(status, code, message)
 }
 export function publicOrigin(value: string) {
-  const url = new URL(value)
+  value = value.trim().replace(/\/+$/, '')
+  let url: URL
+  try { url = new URL(value) } catch { throw new PublicSiteError(503, 'PUBLIC_SITE_ORIGIN', '公开源地址格式有误，请填写不带路径的HTTPS域名') }
   if (url.protocol !== 'https:' || url.origin !== value || url.username || url.password ||
       url.hostname === 'localhost' || url.hostname.includes(':') || /^\d+(?:\.\d+){3}$/.test(url.hostname))
-    throw new Error('INVALID_PUBLIC_ORIGIN')
+    throw new PublicSiteError(503, 'PUBLIC_SITE_ORIGIN', '公开源地址格式有误，请填写不带路径的HTTPS域名')
   return url.origin
+}
+export function safePublicOrigin(value: string | undefined) {
+  try { return value ? publicOrigin(value) : null } catch { return null }
 }
 export function isPublicSitePath(path: string, q: Record<string, string>) {
   if (q.live === 'true' || q.admin === 'true' || q.status) return false
@@ -146,14 +151,27 @@ export async function limitedBytes(response: Response, limit: number) {
 }
 export async function fetchPublicSite(origin: string, send: typeof fetch = fetch, now = Date.now()) {
   const base = publicOrigin(origin)
-  const response = await send(`${base}/${PUBLIC_SITE_KEY}?v=${Math.floor(now / 5000)}`, {
-    cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(10000),
-  })
-  if (!response.ok) throw new Error('PUBLIC_SITE_UNAVAILABLE')
-  const site = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await limitedBytes(response, PUBLIC_SITE_MAX_BYTES))) as PublicSite
+  let response: Response
+  try {
+    response = await send(`${base}/${PUBLIC_SITE_KEY}?v=${Math.floor(now / 5000)}`, {
+      cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(10000),
+    })
+  } catch { throw new PublicSiteError(503, 'PUBLIC_SITE_NETWORK', '无法连接公开源，请检查源地址、HTTPS证书和网络') }
+  if (!response.ok) throw new PublicSiteError(503, `PUBLIC_SITE_HTTP_${response.status}`,
+    `公开源返回HTTP ${response.status}，请检查文件地址、匿名读取权限或源站响应`)
+  let bytes: Uint8Array
+  try { bytes = await limitedBytes(response, PUBLIC_SITE_MAX_BYTES) }
+  catch { throw new PublicSiteError(503, 'PUBLIC_SITE_SIZE', 'PUBLIC_RESPONSE_SIZE：公开文件读取失败或超过8MiB上限') }
+  let parsed: unknown
+  try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) }
+  catch { throw new PublicSiteError(503, 'PUBLIC_SITE_JSON', '公开源返回的不是有效JSON，请检查是否返回了错误页面') }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new PublicSiteError(503, 'PUBLIC_SITE_FORMAT', '公开文件格式不正确，请重新同步公开内容')
+  const site = parsed as PublicSite
   if (site.format !== 'eclub-public-v1' || typeof site.revision !== 'string' ||
       !['events', 'articles', 'popups', 'boards', 'posts', 'comments', 'resources'].every((k) => Array.isArray(site[k as keyof PublicSite])) ||
-      !site.assets || typeof site.assets !== 'object') throw new Error('PUBLIC_SITE_FORMAT')
+      !site.assets || typeof site.assets !== 'object' || Array.isArray(site.assets))
+    throw new PublicSiteError(503, 'PUBLIC_SITE_FORMAT', '公开文件格式不正确，请重新同步公开内容')
   return site
 }
 export async function fetchPublicAsset(origin: string, asset: PublicAsset, send: typeof fetch = fetch) {

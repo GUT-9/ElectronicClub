@@ -1,6 +1,6 @@
 // The upstream is fixed server-side. Request parameters never select a host.
 import { normalizeProxySecret } from '@electronic-club/shared/proxy-secret'
-import { fetchPublicSite, fetchPublicAsset, isPublicSitePath, readPublicSite, PublicSiteError } from '@electronic-club/shared/public-site'
+import { fetchPublicSite, fetchPublicAsset, isPublicSitePath, readPublicSite, PublicSiteError, safePublicOrigin } from '@electronic-club/shared/public-site'
 export const DEFAULT_API_UPSTREAM =
   'https://natural-tuna-d6gptlw1w76fa8a63-1448063817.ap-shanghai.app.tcloudbase.com'
 export interface ProxyContext {
@@ -93,7 +93,7 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch) {
   if (request.method === 'GET' && context.env?.PUBLIC_SITE_ORIGIN) {
     const query = Object.fromEntries(url.searchParams)
     if (url.pathname === '/api/public-site/config')
-      return new Response(JSON.stringify({ success: true, data: { mode: 'qiniu', target: 1500 } }), {
+      return new Response(JSON.stringify({ success: true, data: { mode: 'qiniu', target: 1500, reader: 'edgeone', origin: safePublicOrigin(context.env.PUBLIC_SITE_ORIGIN) } }), {
         headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
       })
     if (isPublicSitePath(url.pathname, {}) && !isPublicSitePath(url.pathname, query)) {
