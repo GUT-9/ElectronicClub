@@ -61,6 +61,27 @@ test('public publication checks anonymous readback instead of treating successfu
   assert.equal(status.dirty, false)
   assert.equal(status.lastError, null)
 })
+test('public JSON and images work on edge runtimes without AbortSignal.timeout', async () => {
+  const original = Object.getOwnPropertyDescriptor(AbortSignal, 'timeout')
+  try {
+    Object.defineProperty(AbortSignal, 'timeout', { configurable: true, value: undefined })
+    const copy = { format: 'eclub-public-v1', generatedAt: new Date().toISOString(), revision: 'edge-timeout-test',
+      events: [], articles: [], popups: [], boards: [], posts: [], comments: [], resources: [], assets: {} }
+    let requests = 0
+    const send: typeof fetch = async (_url, options) => {
+      requests++
+      assert.ok(options?.signal instanceof AbortSignal)
+      assert.equal(options.signal.aborted, false)
+      assert.equal(options.redirect, 'manual')
+      return new Response(requests === 1 ? JSON.stringify(copy) : new Uint8Array([1, 2, 3]))
+    }
+    assert.equal((await fetchPublicSite('https://public.example.test', send)).revision, copy.revision)
+    assert.deepEqual(await fetchPublicAsset('https://public.example.test', { key: `electronicclub/public-site/v1/assets/${'a'.repeat(64)}.png`, mime: 'image/png', bytes: 3 }, send), new Uint8Array([1, 2, 3]))
+    assert.equal(requests, 2)
+  } finally {
+    if (original) Object.defineProperty(AbortSignal, 'timeout', original)
+  }
+})
 test('public source diagnostics distinguish HTTP, connection and malformed files without exposing response contents', async () => {
   assert.equal(safePublicOrigin(' https://public.example.test/ '), 'https://public.example.test')
   assert.equal(safePublicOrigin('https://private:secret@public.example.test'), null)

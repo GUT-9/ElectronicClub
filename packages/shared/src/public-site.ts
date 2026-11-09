@@ -149,12 +149,21 @@ export async function limitedBytes(response: Response, limit: number) {
   for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.length }
   return result
 }
+async function publicDeadline<T>(work: (signal: AbortSignal) => Promise<T>) {
+  // Edge runtimes may have AbortController without AbortSignal.timeout.
+  // Keep the deadline through body consumption and always release the timer.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 10000)
+  try { return await work(controller.signal) }
+  finally { clearTimeout(timer) }
+}
 export async function fetchPublicSite(origin: string, send: typeof fetch = fetch, now = Date.now()) {
+  return publicDeadline(async (signal) => {
   const base = publicOrigin(origin)
   let response: Response
   try {
     response = await send(`${base}/${PUBLIC_SITE_KEY}?v=${Math.floor(now / 5000)}`, {
-      cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(10000),
+      cache: 'no-store', redirect: 'manual', signal,
     })
   } catch { throw new PublicSiteError(503, 'PUBLIC_SITE_NETWORK', '无法连接公开源，请检查源地址、HTTPS证书和网络') }
   if (!response.ok) throw new PublicSiteError(503, `PUBLIC_SITE_HTTP_${response.status}`,
@@ -173,18 +182,21 @@ export async function fetchPublicSite(origin: string, send: typeof fetch = fetch
       !site.assets || typeof site.assets !== 'object' || Array.isArray(site.assets))
     throw new PublicSiteError(503, 'PUBLIC_SITE_FORMAT', '公开文件格式不正确，请重新同步公开内容')
   return site
+  })
 }
 export async function fetchPublicAsset(origin: string, asset: PublicAsset, send: typeof fetch = fetch) {
   if (!/^electronicclub\/public-site\/v1\/assets\/[a-f0-9]{64}\.(jpg|png|webp)$/.test(asset.key) ||
       !['image/jpeg', 'image/png', 'image/webp'].includes(asset.mime) ||
       !Number.isSafeInteger(asset.bytes) || asset.bytes < 1 || asset.bytes > 51200) throw new Error('PUBLIC_ASSET_FORMAT')
+  return publicDeadline(async (signal) => {
   const response = await send(`${publicOrigin(origin)}/${asset.key}`, {
-    cache: 'no-store', redirect: 'manual', signal: AbortSignal.timeout(10000),
+    cache: 'no-store', redirect: 'manual', signal,
   })
   if (!response.ok) throw new Error('PUBLIC_ASSET_UNAVAILABLE')
   const bytes = await limitedBytes(response, 51200)
   if (bytes.length !== asset.bytes) throw new Error('PUBLIC_ASSET_SIZE')
   return bytes
+  })
 }
 
 export function budgetEstimate(pricePerCoreSecond: number | null, days: number, minutesPerDay: number, reserve = 300) {
