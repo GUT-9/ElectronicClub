@@ -19,7 +19,7 @@ const methods = new Set([
 ])
 const maxBody = 3_100_000
 const revision = 'gateway-body-v5'
-type ProxyStage = 'prepare' | 'headers' | 'signature' | 'body' | 'fetch' | 'response'
+type ProxyStage = 'prepare' | 'public_query' | 'headers' | 'signature' | 'body' | 'fetch' | 'response'
 type Trace = { stage: ProxyStage }
 function diagnosticFailure(error: unknown, stage: ProxyStage, timeout = false) {
   // Never return platform exception messages, causes, URLs or request data.
@@ -99,12 +99,17 @@ async function forwardApi(context: ProxyContext, fetcher: typeof fetch, trace: T
     return failure(404, 'NOT_FOUND', '接口不存在')
   if (!methods.has(request.method))
     return failure(405, 'METHOD_NOT_ALLOWED', '不支持的请求方法')
-  if (request.method === 'GET' && context.env?.PUBLIC_SITE_ORIGIN) {
-    const query = Object.fromEntries(url.searchParams)
+  if (request.method === 'GET' && context.env?.PUBLIC_SITE_ORIGIN &&
+      (url.pathname === '/api/public-site/config' || isPublicSitePath(url.pathname, {}))) {
     if (url.pathname === '/api/public-site/config')
       return new Response(JSON.stringify({ success: true, data: { mode: 'qiniu', target: 1500, reader: 'edgeone', origin: safePublicOrigin(context.env.PUBLIC_SITE_ORIGIN) } }), {
         headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' },
       })
+    trace.stage = 'public_query'
+    // Some edge URLSearchParams implementations support forEach but not the
+    // iterable protocol. Health/private requests must not parse public queries.
+    const query: Record<string, string> = Object.create(null)
+    url.searchParams.forEach((value, key) => { query[key] = value })
     if (isPublicSitePath(url.pathname, {}) && !isPublicSitePath(url.pathname, query)) {
       if (query.live !== 'true' && query.admin !== 'true') return failure(400, 'INVALID_INPUT', '公开查询参数无效')
       if (!/__Host-ec-session=[A-Za-z0-9_-]+(?:;|$)/.test(request.headers.get('cookie') ?? ''))

@@ -13,6 +13,39 @@ import { MemberService } from '../apps/functions/src/members/service'
 
 const origin = 'https://club.test',
   secret = 'a'.repeat(64)
+test('public source configuration works with edge URLSearchParams lacking iterator support and leaves health independent', async () => {
+  const StandardURL = globalThis.URL
+  class EdgeURL extends StandardURL {
+    override get searchParams() {
+      const params = super.searchParams
+      Object.defineProperty(params, Symbol.iterator, { value: undefined })
+      return params
+    }
+  }
+  const requests = ['/api/health', '/api/public-site/config', '/api/public/articles?search=%E7%94%B5%E5%AD%90+club&page=1', '/api/forum/posts?live=true']
+    .map(path => new Request(origin + path))
+  const urls: string[] = []
+  try {
+    globalThis.URL = EdgeURL
+    assert.throws(() => Object.fromEntries(new URL(origin).searchParams), TypeError, 'reproduce the original prepare/type_error')
+    const fetcher: typeof fetch = async (url) => {
+      urls.push(String(url))
+      if (String(url).includes('/api/health')) return new Response('{"success":true,"data":{"status":"ok"}}')
+      return new Response(JSON.stringify({ format: 'eclub-public-v1', revision: 'test', generatedAt: new Date().toISOString(),
+        events: [], articles: [], popups: [], boards: [], posts: [], comments: [], resources: [], assets: {} }))
+    }
+    for (const [i, request] of requests.entries()) {
+      const response = await proxyApi({ request, env: { PUBLIC_SITE_ORIGIN: 'https://public.example.test' } }, fetcher)
+      assert.equal(response.status, i === 3 ? 401 : 200)
+      if (i === 0) assert.equal((await response.json() as { data: { status: string } }).data.status, 'ok')
+      if (i === 1) assert.equal((await response.json() as { data: { reader: string } }).data.reader, 'edgeone')
+      if (i === 2) assert.equal((await response.json() as { data: { total: number } }).data.total, 0)
+    }
+    assert.equal(urls.length, 2)
+    assert.ok(urls[0]?.startsWith(DEFAULT_API_UPSTREAM + '/api/health'))
+    assert.ok(urls[1]?.startsWith('https://public.example.test/'))
+  } finally { globalThis.URL = StandardURL }
+})
 test('edge proxy returns safe failure stages without requiring platform logs or exposing exceptions', async () => {
   for (const kind of ['fetch', 'response', 'signature'] as const) {
     const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
